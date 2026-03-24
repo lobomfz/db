@@ -3,6 +3,7 @@ import { Kysely } from "kysely";
 import { BunSqliteDialect } from "./dialect/dialect";
 import type { Type } from "arktype";
 import type { GeneratedPreset } from "./generated";
+import type { DbFieldMeta } from "./env";
 import { DeserializePlugin, type ColumnCoercion, type ColumnsMap } from "./plugin";
 import type {
 	DatabaseOptions,
@@ -26,7 +27,7 @@ type StructureProp = {
 	value: Type & {
 		branches: ArkBranch[];
 		proto?: unknown;
-		meta: Record<string, unknown>;
+		meta: DbFieldMeta & { _generated?: GeneratedPreset };
 	};
 	inner: { default?: unknown };
 };
@@ -41,7 +42,7 @@ type Prop = {
 	isDate?: boolean;
 	isJson?: boolean;
 	jsonSchema?: Type;
-	meta?: Record<string, unknown>;
+	meta?: DbFieldMeta;
 	generated?: GeneratedPreset;
 	defaultValue?: unknown;
 };
@@ -71,9 +72,14 @@ export class Database<T extends SchemaRecord> {
 
 		this.createTables();
 
+		const validation = {
+			onRead: options.validation?.onRead ?? false,
+			onWrite: options.validation?.onWrite ?? true,
+		};
+
 		this.kysely = new Kysely<TablesFromSchemas<T>>({
 			dialect: new BunSqliteDialect({ database: this.sqlite }),
-			plugins: [new DeserializePlugin(this.columns)],
+			plugins: [new DeserializePlugin(this.columns, validation)],
 		});
 	}
 
@@ -95,10 +101,10 @@ export class Database<T extends SchemaRecord> {
 		}
 	}
 
-	private normalizeProp(structureProp: StructureProp, parentSchema: Type): Prop {
+	private normalizeProp(structureProp: StructureProp, parentSchema: Type) {
 		const { key, value: v, inner } = structureProp;
-		const kind = structureProp.required ? "required" : "optional";
-		const generated = v.meta._generated as GeneratedPreset | undefined;
+		const kind: Prop["kind"] = structureProp.required ? "required" : "optional";
+		const generated = v.meta._generated;
 		const defaultValue = inner.default;
 
 		const nonNull = v.branches.filter((b) => b.unit !== null);
@@ -155,7 +161,7 @@ export class Database<T extends SchemaRecord> {
 		return "TEXT";
 	}
 
-	private columnConstraint(prop: Prop): string | null {
+	private columnConstraint(prop: Prop) {
 		if (prop.generated === "autoincrement") {
 			return "PRIMARY KEY AUTOINCREMENT";
 		}
@@ -171,7 +177,7 @@ export class Database<T extends SchemaRecord> {
 		return null;
 	}
 
-	private defaultClause(prop: Prop): string | null {
+	private defaultClause(prop: Prop) {
 		if (prop.generated === "now") {
 			return "DEFAULT (unixepoch())";
 		}
@@ -192,7 +198,7 @@ export class Database<T extends SchemaRecord> {
 			return `DEFAULT ${prop.defaultValue}`;
 		}
 
-		return `DEFAULT '${String(prop.defaultValue)}'`;
+		throw new Error(`Unsupported default value type: ${typeof prop.defaultValue}`);
 	}
 
 	private columnDef(prop: Prop) {
@@ -208,7 +214,7 @@ export class Database<T extends SchemaRecord> {
 	}
 
 	private foreignKey(prop: Prop) {
-		const ref = prop.meta?.references as string | undefined;
+		const ref = prop.meta?.references;
 
 		if (!ref) {
 			return null;
@@ -218,7 +224,7 @@ export class Database<T extends SchemaRecord> {
 
 		let fk = `FOREIGN KEY ("${prop.key}") REFERENCES "${table}"("${column}")`;
 
-		const onDelete = prop.meta?.onDelete as string | undefined;
+		const onDelete = prop.meta?.onDelete;
 
 		if (onDelete) {
 			fk += ` ON DELETE ${onDelete.toUpperCase()}`;

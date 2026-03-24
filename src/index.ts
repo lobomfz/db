@@ -14,5 +14,6 @@ export type {
 	IndexesConfig,
 	DatabasePragmas,
 	DatabaseSchema,
+	JsonValidation,
 	SqliteMasterRow,
 } from "./types";

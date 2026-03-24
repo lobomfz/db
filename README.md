@@ -1,11 +1,11 @@
 # @lobomfz/db
 
-SQLite database with Arktype schemas and typed Kysely client.
+SQLite database with Arktype schemas and typed Kysely client for Bun.
 
 ## Install
 
 ```bash
-bun add @lobomfz/db
+bun add @lobomfz/db arktype kysely
 ```
 
 ## Usage
@@ -14,88 +14,67 @@ bun add @lobomfz/db
 import { Database, generated, type } from "@lobomfz/db";
 
 const db = new Database({
-	path: "data.db",
-	tables: {
-		users: type({
-			id: generated("autoincrement"),
-			name: "string",
-			email: type("string").configure({ unique: true }),
-			"bio?": "string",
-			created_at: generated("now"),
-		}),
-		posts: type({
-			id: generated("autoincrement"),
-			user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
-			title: "string",
-			tags: "string[]",
-			status: type("string").default("draft"),
-		}),
-	},
-	indexes: {
-		posts: [{ columns: ["user_id", "status"] }, { columns: ["title"], unique: true }],
-	},
+  path: "data.db",
+  schema: {
+    tables: {
+      users: type({
+        id: generated("autoincrement"),
+        name: "string",
+        email: type("string").configure({ unique: true }),
+        "bio?": "string",                    // optional → nullable in SQLite
+        active: type("boolean").default(true),
+        created_at: generated("now"),          // defaults to current time
+      }),
+      posts: type({
+        id: generated("autoincrement"),
+        user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
+        title: "string",
+        published_at: "Date",                   // native Date support
+        tags: "string[]",                      // JSON columns just work
+        metadata: type({ source: "string", "priority?": "number" }), // validated on write by default
+        status: type.enumerated("draft", "published").default("draft"),
+      }),
+    },
+    indexes: {
+      posts: [{ columns: ["user_id", "status"] }, { columns: ["title"], unique: true }],
+    },
+  },
+  pragmas: {
+    journal_mode: "wal",
+    synchronous: "normal",
+  },
 });
 
-// Fully typed Kysely client - fields with defaults are optional on insert
+// Fully typed Kysely client — generated/default fields are optional on insert
 await db.kysely.insertInto("users").values({ name: "John", email: "john@example.com" }).execute();
 
 const users = await db.kysely.selectFrom("users").selectAll().execute();
+// users[0].active     → true
+// users[0].created_at → Date
 ```
 
-## Features
+Booleans, dates, objects, arrays — everything round-trips as the type you declared. The schema is the source of truth for table creation, TypeScript types, and runtime coercion.
 
-- Tables auto-created from Arktype schemas
-- Full TypeScript inference (insert vs select types)
-- JSON columns with validation
-- Foreign keys, unique constraints, defaults
-- Composite indexes
-
-## Generated Fields
-
-Use `generated()` for SQL-generated values:
+## API
 
 ```typescript
-generated("autoincrement"); // INTEGER PRIMARY KEY AUTOINCREMENT
-generated("now"); // DEFAULT (unixepoch()) - Unix timestamp
+generated("autoincrement");                                               // auto-incrementing primary key
+generated("now");                                                         // defaults to current timestamp, returned as Date
+type("string").default("pending");                                        // SQL DEFAULT
+type("string").configure({ unique: true });                               // UNIQUE
+type("number.integer").configure({ references: "users.id", onDelete: "cascade" }); // FK
 ```
 
-## Default Values
-
-Use Arktype's `.default()` for JS defaults (also creates SQL DEFAULT):
+JSON columns are validated against the schema on write by default. To also validate on read, or to disable write validation:
 
 ```typescript
-type("string").default("pending");
-type("number").default(0);
-```
-
-## Column Configuration
-
-```typescript
-type("string").configure({ unique: true });
-type("number.integer").configure({ references: "users.id", onDelete: "cascade" });
-```
-
-`onDelete` options: `"cascade"`, `"set null"`, `"restrict"`
-
-## Composite Indexes
-
-```typescript
-const db = new Database({
-  tables: { ... },
-  indexes: {
-    posts: [
-      { columns: ["user_id", "category_id"], unique: true },
-      { columns: ["created_at"] },
-    ],
-  },
+new Database({
+  // ...
+  validation: { onRead: true },  // default: { onRead: false, onWrite: true }
 });
 ```
 
-## Errors
-
-```typescript
-import { JsonParseError, JsonValidationError } from "@lobomfz/db";
-```
+> **Note:** Migrations are not supported yet. Tables are created with `CREATE TABLE IF NOT EXISTS`.
 
 ## License
 

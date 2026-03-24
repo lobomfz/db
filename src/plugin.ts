@@ -1,44 +1,151 @@
-import { type KyselyPlugin, type RootOperationNode, type UnknownRow } from "kysely";
+import {
+	type KyselyPlugin,
+	type RootOperationNode,
+	type UnknownRow,
+	type QueryId,
+	TableNode,
+	AliasNode,
+	ValuesNode,
+	ValueNode,
+	ColumnNode,
+} from "kysely";
 import { type } from "arktype";
 import type { Type } from "arktype";
 import { JsonParseError } from "./errors";
 import { JsonValidationError } from "./validation-error";
+import type { JsonValidation } from "./types";
 
 export type ColumnCoercion = "boolean" | "date" | { type: "json"; schema: Type };
 export type ColumnsMap = Map<string, Map<string, ColumnCoercion>>;
 
 export class DeserializePlugin implements KyselyPlugin {
-	private queryNodes = new Map<unknown, RootOperationNode>();
+	private queryNodes = new WeakMap<QueryId, RootOperationNode>();
 
-	constructor(private columns: ColumnsMap) {}
+	constructor(
+		private columns: ColumnsMap,
+		private validation: Required<JsonValidation>,
+	) {}
 
 	transformQuery: KyselyPlugin["transformQuery"] = (args) => {
 		this.queryNodes.set(args.queryId, args.node);
 
+		if (this.validation.onWrite) {
+			this.validateWriteNode(args.node);
+		}
+
 		return args.node;
 	};
 
-	private getTableFromNode(node: RootOperationNode): string | null {
+	private getTableFromNode(node: RootOperationNode) {
 		switch (node.kind) {
 			case "InsertQueryNode":
-				return (node as any).into?.table?.identifier?.name ?? null;
+				return node.into?.table.identifier.name ?? null;
 
-			case "UpdateQueryNode":
-				return (node as any).table?.table?.identifier?.name ?? null;
+			case "UpdateQueryNode": {
+				if (node.table && TableNode.is(node.table)) {
+					return node.table.table.identifier.name;
+				}
+
+				return null;
+			}
 
 			case "SelectQueryNode":
 			case "DeleteQueryNode": {
-				const fromNode = (node as any).from?.froms?.[0];
+				const fromNode = node.from?.froms[0];
 
-				if (fromNode?.kind === "AliasNode") {
-					return fromNode.node?.table?.identifier?.name ?? null;
+				if (!fromNode) {
+					return null;
 				}
 
-				return fromNode?.table?.identifier?.name ?? null;
+				if (AliasNode.is(fromNode) && TableNode.is(fromNode.node)) {
+					return fromNode.node.table.identifier.name;
+				}
+
+				if (TableNode.is(fromNode)) {
+					return fromNode.table.identifier.name;
+				}
+
+				return null;
 			}
 
 			default:
 				return null;
+		}
+	}
+
+	private validateJsonValue(table: string, col: string, value: unknown, schema: Type) {
+		if (value === null || value === undefined) {
+			return;
+		}
+
+		const result = schema(value);
+
+		if (result instanceof type.errors) {
+			throw new JsonValidationError(table, col, result.summary);
+		}
+	}
+
+	private validateWriteNode(node: RootOperationNode) {
+		if (node.kind !== "InsertQueryNode" && node.kind !== "UpdateQueryNode") {
+			return;
+		}
+
+		const table = this.getTableFromNode(node);
+
+		if (!table) {
+			return;
+		}
+
+		const cols = this.columns.get(table);
+
+		if (!cols) {
+			return;
+		}
+
+		for (const [col, value] of this.writeValues(node)) {
+			const coercion = cols.get(col);
+
+			if (!coercion || typeof coercion === "string") {
+				continue;
+			}
+
+			this.validateJsonValue(table, col, value, coercion.schema);
+		}
+	}
+
+	private *writeValues(node: RootOperationNode) {
+		if (node.kind === "InsertQueryNode") {
+			const columns = node.columns?.map((c) => c.column.name);
+
+			if (!columns || !node.values || !ValuesNode.is(node.values)) {
+				return;
+			}
+
+			for (const valueList of node.values.values) {
+				for (let i = 0; i < columns.length; i++) {
+					const col = columns[i]!;
+
+					if (valueList.kind === "PrimitiveValueListNode") {
+						yield [col, valueList.values[i]] as [string, unknown];
+						continue;
+					}
+
+					const raw = valueList.values[i];
+					yield [col, raw && ValueNode.is(raw) ? raw.value : raw] as [string, unknown];
+				}
+			}
+
+			return;
+		}
+
+		if (node.kind !== "UpdateQueryNode" || !node.updates) {
+			return;
+		}
+
+		for (const update of node.updates) {
+			if (ColumnNode.is(update.column) && ValueNode.is(update.value)) {
+				yield [update.column.column.name, update.value.value] as [string, unknown];
+			}
 		}
 	}
 
@@ -78,17 +185,14 @@ export class DeserializePlugin implements KyselyPlugin {
 				throw new JsonParseError(table, col, value, e);
 			}
 
-			const validated = coercion.schema(parsed);
-
-			if (validated instanceof type.errors) {
-				throw new JsonValidationError(table, col, validated.summary);
+			if (this.validation.onRead) {
+				this.validateJsonValue(table, col, parsed, coercion.schema);
 			}
 
-			row[col] = validated;
+			row[col] = parsed;
 		}
 	}
 
-	// oxlint-disable-next-line require-await
 	transformResult: KyselyPlugin["transformResult"] = async (args) => {
 		const node = this.queryNodes.get(args.queryId);
 

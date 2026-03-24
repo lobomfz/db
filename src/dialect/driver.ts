@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { CompiledQuery, type DatabaseConnection, type Driver } from "kysely";
 import type { BunSqliteDialectConfig } from "./config";
 import { BunSqliteConnection } from "./connection";
@@ -38,12 +38,10 @@ export class BunSqliteDriver implements Driver {
 		await connection.executeQuery(CompiledQuery.raw("rollback"));
 	}
 
-	// oxlint-disable-next-line require-await
 	async releaseConnection(): Promise<void> {
 		this.#connectionMutex.unlock();
 	}
 
-	// oxlint-disable-next-line require-await
 	async destroy(): Promise<void> {
 		this.#db?.close();
 	}

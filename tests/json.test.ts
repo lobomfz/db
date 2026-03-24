@@ -104,7 +104,7 @@ describe("JSON columns", () => {
 		expect((error as JsonParseError).cause).toBeInstanceOf(SyntaxError);
 	});
 
-	test("throws JsonValidationError for invalid data", async () => {
+	test("throws JsonValidationError for invalid data on read", async () => {
 		const db = new Database({
 			path: ":memory:",
 			schema: {
@@ -117,6 +117,7 @@ describe("JSON columns", () => {
 					}),
 				},
 			},
+			validation: { onRead: true },
 		});
 
 		const sqlite = (db as any).sqlite;
@@ -226,7 +227,7 @@ describe("JSON columns", () => {
 		});
 	});
 
-	test("discriminated union rejects invalid variant", async () => {
+	test("discriminated union rejects invalid variant on read", async () => {
 		const block = type({ type: "'text'", content: "string" }).or({
 			type: "'image'",
 			url: "string",
@@ -242,6 +243,7 @@ describe("JSON columns", () => {
 					}),
 				},
 			},
+			validation: { onRead: true },
 		});
 
 		const sqlite = (db as any).sqlite;
@@ -329,6 +331,48 @@ describe("JSON columns", () => {
 
 		expect(updated.id).toBe(1);
 		expect(updated.data.value).toBe(99);
+	});
+
+	test("validates JSON on insert", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						data: type({ value: "number" }),
+					}),
+				},
+			},
+		});
+
+		await expect(() =>
+			db.kysely.insertInto("items").values({ data: { value: "not a number" } } as any).execute(),
+		).toThrow(JsonValidationError);
+	});
+
+	test("validates JSON on update", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						data: type({ value: "number" }),
+					}),
+				},
+			},
+		});
+
+		await db.kysely.insertInto("items").values({ data: { value: 1 } }).execute();
+
+		await expect(() =>
+			db.kysely
+				.updateTable("items")
+				.set({ data: { value: "bad" } } as any)
+				.where("id", "=", 1)
+				.execute(),
+		).toThrow(JsonValidationError);
 	});
 
 	test("nullable JSON column", async () => {

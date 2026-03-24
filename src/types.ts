@@ -58,8 +58,14 @@ export type DatabaseSchema<T extends SchemaRecord> = {
 	indexes?: IndexesConfig<T>;
 };
 
+export type JsonValidation = {
+	onRead?: boolean;
+	onWrite?: boolean;
+};
+
 export type DatabaseOptions<T extends SchemaRecord> = {
 	path: string;
 	schema: DatabaseSchema<T>;
 	pragmas?: DatabasePragmas;
+	validation?: JsonValidation;
 };
