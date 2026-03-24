@@ -5,14 +5,13 @@ SQLite database with Arktype schemas and typed Kysely client.
 ## Install
 
 ```bash
-bun add @lobomfz/db arktype kysely
+bun add @lobomfz/db
 ```
 
 ## Usage
 
 ```typescript
-import { type } from "arktype";
-import { Database, generated } from "@lobomfz/db";
+import { Database, generated, type } from "@lobomfz/db";
 
 const db = new Database({
 	path: "data.db",
