@@ -1,0 +1,21 @@
+{
+	"ignorePatterns": ["projects/mock/**"],
+	"rules": {
+		"no-unused-vars": "warn",
+		"no-accumulating-spread Perf": "error",
+		"no-await-in-loop": "off",
+		"explicit-length-check": "off",
+		"no-array-callback-reference": "off",
+		"max-lines": "off",
+		"max-lines-per-function": "off",
+		"unicorn/consistent-function-scoping": "off",
+		"no-warning-comments": "off",
+		"no-array-sort": "off"
+	},
+	"categories": {
+		"correctness": "error",
+		"perf": "error",
+		"suspicious": "error",
+		"pedantic": "error"
+	}
+}

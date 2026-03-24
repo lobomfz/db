@@ -1,0 +1,53 @@
+{
+	"name": "@lobomfz/db",
+	"version": "0.1.0",
+	"description": "SQLite database with Arktype schemas and typed Kysely client",
+	"keywords": [
+		"arktype",
+		"bun",
+		"database",
+		"kysely",
+		"schema",
+		"sqlite",
+		"typescript",
+		"validation"
+	],
+	"license": "MIT",
+	"author": "lobomfz",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/lobomfz/db.git"
+	},
+	"files": [
+		"src",
+		"dist"
+	],
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"check": "tsgo",
+		"build": "bun run build:js && bun run build:types",
+		"build:js": "bun build src/index.ts --outdir dist --target bun --sourcemap",
+		"build:types": "tsgo -p tsconfig.build.json"
+	},
+	"dependencies": {
+		"@lobomfz/kysely-bun-sqlite": "^0.4.1"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.11",
+		"@typescript/native-preview": "^7.0.0-dev.20260324.1",
+		"oxfmt": "^0.42.0",
+		"oxlint": "^1.57.0"
+	},
+	"peerDependencies": {
+		"arktype": "^2.1.29",
+		"kysely": "^0.28.14"
+	}
+}
