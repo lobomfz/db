@@ -14,4 +14,5 @@ export type {
 	IndexesConfig,
 	DatabasePragmas,
 	DatabaseSchema,
+	SqliteMasterRow,
 } from "./types";

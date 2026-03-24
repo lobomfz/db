@@ -23,9 +23,17 @@ export type SchemaRecord = Record<string, Type>;
 
 export type InferTableType<T> = TransformTable<ExtractOutput<T>, ExtractInput<T>>;
 
+export type SqliteMasterRow = {
+	type: "table" | "index" | "view" | "trigger";
+	name: string;
+	tbl_name: string;
+	rootpage: number;
+	sql: string | null;
+};
+
 export type TablesFromSchemas<T extends SchemaRecord> = {
 	[K in keyof T]: InferTableType<T[K]>;
-};
+} & { sqlite_master: SqliteMasterRow };
 
 type TableColumns<T extends SchemaRecord, K extends keyof T> = keyof ExtractOutput<T[K]> & string;
 

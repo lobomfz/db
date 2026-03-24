@@ -17,7 +17,7 @@ describe("generated", () => {
 		});
 
 		const tableInfo = await db.kysely
-			.selectFrom("sqlite_master" as any)
+			.selectFrom("sqlite_master")
 			.where("type", "=", "table")
 			.where("name", "=", "items")
 			.select("sql")
@@ -61,7 +61,7 @@ describe("generated", () => {
 		});
 
 		const tableInfo = await db.kysely
-			.selectFrom("sqlite_master" as any)
+			.selectFrom("sqlite_master")
 			.where("type", "=", "table")
 			.where("name", "=", "items")
 			.select("sql")

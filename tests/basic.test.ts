@@ -3,7 +3,7 @@ import { type } from "arktype";
 import { Database } from "../src/index.ts";
 
 describe("basic", () => {
-	test("creates tables from schemas", () => {
+	test("creates tables from schemas", async () => {
 		const db = new Database({
 			path: ":memory:",
 			schema: {
@@ -16,14 +16,14 @@ describe("basic", () => {
 			},
 		});
 
-		const tables = db.kysely
-			.selectFrom("sqlite_master" as any)
+		const tables = await db.kysely
+			.selectFrom("sqlite_master")
 			.where("type", "=", "table")
 			.where("name", "=", "users")
 			.selectAll()
 			.executeTakeFirst();
 
-		expect(tables).resolves.toBeDefined();
+		expect(tables).toBeDefined();
 	});
 
 	test("kysely client is typed", async () => {

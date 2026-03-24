@@ -100,6 +100,8 @@ describe("JSON columns", () => {
 		expect(error).toBeInstanceOf(JsonParseError);
 		expect((error as JsonParseError).table).toBe("items");
 		expect((error as JsonParseError).column).toBe("data");
+		expect((error as JsonParseError).value).toBe("not valid json");
+		expect((error as JsonParseError).cause).toBeInstanceOf(SyntaxError);
 	});
 
 	test("throws JsonValidationError for invalid data", async () => {
@@ -129,6 +131,7 @@ describe("JSON columns", () => {
 		expect(error).toBeInstanceOf(JsonValidationError);
 		expect((error as JsonValidationError).table).toBe("items");
 		expect((error as JsonValidationError).column).toBe("data");
+		expect((error as JsonValidationError).summary).toContain("count");
 	});
 
 	test("optional JSON column", async () => {
@@ -277,5 +280,76 @@ describe("JSON columns", () => {
 
 		expect(deleted.id).toBe(1);
 		expect(deleted.data.value).toBe(42);
+	});
+
+	test("insert with returning parses JSON", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						data: type({ value: "number" }),
+					}),
+				},
+			},
+		});
+
+		const inserted = await db.kysely
+			.insertInto("items")
+			.values({ data: { value: 42 } })
+			.returning(["id", "data"])
+			.executeTakeFirstOrThrow();
+
+		expect(inserted.id).toBe(1);
+		expect(inserted.data.value).toBe(42);
+	});
+
+	test("update with returning parses JSON", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						data: type({ value: "number" }),
+					}),
+				},
+			},
+		});
+
+		await db.kysely.insertInto("items").values({ data: { value: 1 } }).execute();
+
+		const updated = await db.kysely
+			.updateTable("items")
+			.set({ data: { value: 99 } })
+			.where("id", "=", 1)
+			.returning(["id", "data"])
+			.executeTakeFirstOrThrow();
+
+		expect(updated.id).toBe(1);
+		expect(updated.data.value).toBe(99);
+	});
+
+	test("nullable JSON column", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						data: type({ value: "number" }).or("null"),
+					}),
+				},
+			},
+		});
+
+		await db.kysely.insertInto("items").values({ data: null }).execute();
+		await db.kysely.insertInto("items").values({ data: { value: 42 } }).execute();
+
+		const items = await db.kysely.selectFrom("items").selectAll().orderBy("id").execute();
+
+		expect(items[0]!.data).toBeNull();
+		expect(items[1]!.data).toEqual({ value: 42 });
 	});
 });

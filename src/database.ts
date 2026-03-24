@@ -1,9 +1,9 @@
 import { Database as BunDatabase } from "bun:sqlite";
 import { Kysely } from "kysely";
-import { BunSqliteDialect } from "@lobomfz/kysely-bun-sqlite";
+import { BunSqliteDialect } from "./dialect/dialect";
 import type { Type } from "arktype";
 import type { GeneratedPreset } from "./generated";
-import { CoercionPlugin, type ColumnCoercion, type ColumnsMap } from "./plugin";
+import { DeserializePlugin, type ColumnCoercion, type ColumnsMap } from "./plugin";
 import type {
 	DatabaseOptions,
 	IndexDefinition,
@@ -73,7 +73,7 @@ export class Database<T extends SchemaRecord> {
 
 		this.kysely = new Kysely<TablesFromSchemas<T>>({
 			dialect: new BunSqliteDialect({ database: this.sqlite }),
-			plugins: [new CoercionPlugin(this.columns)],
+			plugins: [new DeserializePlugin(this.columns)],
 		});
 	}
 

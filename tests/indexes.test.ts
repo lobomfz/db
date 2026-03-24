@@ -22,7 +22,7 @@ describe("indexes", () => {
 		});
 
 		const indexes = await db.kysely
-			.selectFrom("sqlite_master" as any)
+			.selectFrom("sqlite_master")
 			.where("type", "=", "index")
 			.where("tbl_name", "=", "posts")
 			.where("name", "like", "ix_%")
@@ -84,7 +84,7 @@ describe("indexes", () => {
 		});
 
 		const indexes = await db.kysely
-			.selectFrom("sqlite_master" as any)
+			.selectFrom("sqlite_master")
 			.where("type", "=", "index")
 			.where("tbl_name", "=", "posts")
 			.where("name", "not like", "sqlite_%")
@@ -111,7 +111,7 @@ describe("indexes", () => {
 		});
 
 		const indexes = await db.kysely
-			.selectFrom("sqlite_master" as any)
+			.selectFrom("sqlite_master")
 			.where("type", "=", "index")
 			.where("tbl_name", "=", "users")
 			.where("name", "=", "ix_users_email")
@@ -144,7 +144,7 @@ describe("indexes", () => {
 		});
 
 		const userIndexes = await db.kysely
-			.selectFrom("sqlite_master" as any)
+			.selectFrom("sqlite_master")
 			.where("type", "=", "index")
 			.where("tbl_name", "=", "users")
 			.where("name", "not like", "sqlite_%")
@@ -152,7 +152,7 @@ describe("indexes", () => {
 			.execute();
 
 		const postIndexes = await db.kysely
-			.selectFrom("sqlite_master" as any)
+			.selectFrom("sqlite_master")
 			.where("type", "=", "index")
 			.where("tbl_name", "=", "posts")
 			.where("name", "not like", "sqlite_%")

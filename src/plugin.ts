@@ -1,15 +1,13 @@
 import { type KyselyPlugin, type RootOperationNode, type UnknownRow } from "kysely";
 import { type } from "arktype";
 import type { Type } from "arktype";
-import { ValueSerializer } from "./serializer";
 import { JsonParseError } from "./errors";
 import { JsonValidationError } from "./validation-error";
 
 export type ColumnCoercion = "boolean" | "date" | { type: "json"; schema: Type };
 export type ColumnsMap = Map<string, Map<string, ColumnCoercion>>;
 
-export class CoercionPlugin implements KyselyPlugin {
-	private serializer = new ValueSerializer();
+export class DeserializePlugin implements KyselyPlugin {
 	private queryNodes = new Map<unknown, RootOperationNode>();
 
 	constructor(private columns: ColumnsMap) {}
@@ -17,7 +15,7 @@ export class CoercionPlugin implements KyselyPlugin {
 	transformQuery: KyselyPlugin["transformQuery"] = (args) => {
 		this.queryNodes.set(args.queryId, args.node);
 
-		return this.serializer.transformNode(args.node);
+		return args.node;
 	};
 
 	private getTableFromNode(node: RootOperationNode): string | null {
@@ -93,7 +91,6 @@ export class CoercionPlugin implements KyselyPlugin {
 	// oxlint-disable-next-line require-await
 	transformResult: KyselyPlugin["transformResult"] = async (args) => {
 		const node = this.queryNodes.get(args.queryId);
-		this.queryNodes.delete(args.queryId);
 
 		if (!node) {
 			return args.result;

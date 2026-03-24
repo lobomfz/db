@@ -44,4 +44,51 @@ describe("pragmas", () => {
 		expect(fk.rows[0]?.foreign_keys).toBe(1);
 		expect(timeout.rows[0]?.timeout).toBe(5000);
 	});
+
+	test("default pragmas enable foreign_keys", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						name: "string",
+					}),
+				},
+			},
+		});
+
+		const fk = await sql<{ foreign_keys: number }>`PRAGMA foreign_keys`.execute(db.kysely);
+		expect(fk.rows[0]?.foreign_keys).toBe(1);
+	});
+
+	test("foreign_keys can be disabled", async () => {
+		const db = new Database({
+			path: ":memory:",
+			pragmas: {
+				foreign_keys: false,
+			},
+			schema: {
+				tables: {
+					users: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						name: "string",
+					}),
+					posts: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						user_id: type("number.integer").configure({ references: "users.id" }),
+						title: "string",
+					}),
+				},
+			},
+		});
+
+		const fk = await sql<{ foreign_keys: number }>`PRAGMA foreign_keys`.execute(db.kysely);
+		expect(fk.rows[0]?.foreign_keys).toBe(0);
+
+		await db.kysely.insertInto("posts").values({ id: 1, user_id: 999, title: "Test" }).execute();
+
+		const post = await db.kysely.selectFrom("posts").selectAll().executeTakeFirst();
+		expect(post).toBeDefined();
+	});
 });

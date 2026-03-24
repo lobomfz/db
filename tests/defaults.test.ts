@@ -108,6 +108,30 @@ describe("defaults", () => {
 		expect(item.updated_at.getTime()).toBe(newDate.getTime());
 	});
 
+	test("manual Date insert roundtrip", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					events: type({
+						id: generated("autoincrement"),
+						name: "string",
+						happened_at: "Date",
+					}),
+				},
+			},
+		});
+
+		const date = new Date("2025-06-15T12:00:00Z");
+
+		await db.kysely.insertInto("events").values({ name: "Test", happened_at: date }).execute();
+
+		const event = await db.kysely.selectFrom("events").selectAll().executeTakeFirstOrThrow();
+
+		expect(event.happened_at).toBeInstanceOf(Date);
+		expect(event.happened_at.getTime()).toBe(date.getTime());
+	});
+
 	test("default number value", async () => {
 		const db = new Database({
 			path: ":memory:",
@@ -127,6 +151,27 @@ describe("defaults", () => {
 		const item = await db.kysely.selectFrom("items").selectAll().executeTakeFirst();
 
 		expect(item?.count).toBe(0);
+	});
+
+	test("boolean default generates DEFAULT in DDL", () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						name: "string",
+						active: type("boolean").default(true),
+					}),
+				},
+			},
+		});
+
+		const sqlite = (db as any).sqlite;
+		const ddl = sqlite.query("SELECT sql FROM sqlite_master WHERE name = 'items'").get()
+			?.sql as string;
+
+		expect(ddl).toContain('"active" INTEGER DEFAULT true');
 	});
 
 	describe("nullable columns", () => {
