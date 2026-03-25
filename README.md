@@ -74,7 +74,35 @@ new Database({
 });
 ```
 
-> **Note:** Migrations are not supported yet. Tables are created with `CREATE TABLE IF NOT EXISTS`.
+## Migrations
+
+Schema changes are applied automatically on startup. Every time `new Database(...)` runs, the library compares your Arktype schema against the actual SQLite database and applies the minimum set of operations to bring them in sync. No migration files, no version tracking — the database itself is the source of truth.
+
+### What's supported
+
+| Change | Strategy |
+|---|---|
+| New table | `CREATE TABLE` |
+| Removed table | `DROP TABLE` |
+| New nullable column | `ALTER TABLE ADD COLUMN` |
+| New NOT NULL column with DEFAULT | `ALTER TABLE ADD COLUMN` |
+| Removed column | Table rebuild |
+| Type change | Table rebuild |
+| Nullability change | Table rebuild |
+| DEFAULT change | Table rebuild |
+| UNIQUE added/removed | Table rebuild |
+| FK added/removed/changed | Table rebuild |
+| Index added | `CREATE INDEX` |
+| Index removed | `DROP INDEX` |
+
+Table rebuilds follow SQLite's [recommended procedure](https://www.sqlite.org/lang_altertable.html#otheralter): create a new table with the target schema, copy data from the old table, drop the old table, rename the new one. Foreign keys are disabled during rebuilds and validated via `PRAGMA foreign_key_check` before committing.
+
+### Safety rules
+
+- Adding a NOT NULL column without DEFAULT to a table **with data** throws an error
+- Changing a nullable column to NOT NULL without DEFAULT throws if any row has NULL in that column
+- Nullable-to-NOT-NULL with DEFAULT uses `COALESCE` to fill existing NULLs
+- Column renames are treated as drop + add (data in the old column is not preserved)
 
 ## License
 
