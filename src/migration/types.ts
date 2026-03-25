@@ -45,7 +45,7 @@ export type MigrationOp =
 	| CreateIndexOp
 	| DropIndexOp;
 
-export type IntrospectedColumn = {
+export type ColumnSchema = {
 	name: string;
 	type: string;
 	notnull: boolean;
@@ -53,8 +53,11 @@ export type IntrospectedColumn = {
 	unique: boolean;
 	references: string | null;
 	onDelete: string | null;
-	hasNulls: boolean;
 };
+
+export interface IntrospectedColumn extends ColumnSchema {
+	hasNulls: boolean;
+}
 
 export type IntrospectedIndex = {
 	name: string;

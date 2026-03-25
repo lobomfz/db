@@ -51,24 +51,12 @@ describe("migration integration", () => {
 
 		await db.kysely.insertInto("users").values({ name: "Alice" }).execute();
 
-		const db2 = new Database({
-			path: ":memory:",
-			schema: {
-				tables: {
-					users: type({
-						id: generated("autoincrement"),
-						name: "string",
-					}),
-				},
-			},
-		});
+		(db as any).migrate();
 
-		await db2.kysely.insertInto("users").values({ name: "Bob" }).execute();
-
-		const users = await db2.kysely.selectFrom("users").selectAll().execute();
+		const users = await db.kysely.selectFrom("users").selectAll().execute();
 
 		expect(users).toHaveLength(1);
-		expect(users[0]!.name).toBe("Bob");
+		expect(users[0]!.name).toBe("Alice");
 	});
 
 	test("creates indexes on fresh database", () => {

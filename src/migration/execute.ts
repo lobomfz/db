@@ -13,6 +13,7 @@ export class Executor {
 		}
 
 		const hasRebuild = this.ops.some((op) => op.type === "RebuildTable");
+
 		let restoreFk = false;
 
 		if (hasRebuild) {
@@ -48,33 +49,25 @@ export class Executor {
 	}
 
 	private executeOp(op: MigrationOp) {
-		if (op.type === "CreateTable") {
-			this.db.run(op.sql);
-			return;
-		}
-
-		if (op.type === "DropTable") {
-			this.db.run(`DROP TABLE "${op.table}"`);
-			return;
-		}
-
-		if (op.type === "AddColumn") {
-			this.db.run(`ALTER TABLE "${op.table}" ADD COLUMN ${op.columnDef}`);
-			return;
-		}
-
-		if (op.type === "RebuildTable") {
-			this.rebuildTable(op);
-			return;
-		}
-
-		if (op.type === "CreateIndex") {
-			this.db.run(op.sql);
-			return;
-		}
-
-		if (op.type === "DropIndex") {
-			this.db.run(`DROP INDEX "${op.index}"`);
+		switch (op.type) {
+			case "CreateTable": {
+				return this.db.run(op.sql);
+			}
+			case "DropTable": {
+				return this.db.run(`DROP TABLE "${op.table}"`);
+			}
+			case "AddColumn": {
+				return this.db.run(`ALTER TABLE "${op.table}" ADD COLUMN ${op.columnDef}`);
+			}
+			case "RebuildTable": {
+				return this.rebuildTable(op);
+			}
+			case "CreateIndex": {
+				return this.db.run(op.sql);
+			}
+			case "DropIndex": {
+				return this.db.run(`DROP INDEX "${op.index}"`);
+			}
 		}
 	}
 

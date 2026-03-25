@@ -1,16 +1,9 @@
-import type { IntrospectedColumn, IntrospectedTable, ColumnCopy, MigrationOp } from "./types";
+import type { ColumnSchema, IntrospectedTable, ColumnCopy, MigrationOp } from "./types";
 
-export type DesiredColumn = {
-	name: string;
+export interface DesiredColumn extends ColumnSchema {
 	addable: boolean;
 	columnDef: string;
-	type: string;
-	notnull: boolean;
-	defaultValue: string | null;
-	unique: boolean;
-	references: string | null;
-	onDelete: string | null;
-};
+}
 
 export type DesiredIndex = {
 	name: string;
@@ -144,7 +137,7 @@ export class Differ {
 		}
 	}
 
-	private columnChanged(desired: DesiredColumn, existing: IntrospectedColumn) {
+	private columnChanged(desired: ColumnSchema, existing: ColumnSchema) {
 		return (
 			desired.type !== existing.type ||
 			desired.notnull !== existing.notnull ||

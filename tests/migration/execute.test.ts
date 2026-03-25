@@ -330,4 +330,95 @@ describe("execute", () => {
 
 		expect(() => db.run("INSERT INTO \"users\" VALUES (2, 'a@b.com')")).toThrow();
 	});
+
+	test("rebuild with FK column preserves constraint without duplication", () => {
+		const db = new BunDatabase(":memory:");
+		db.run("PRAGMA foreign_keys = ON");
+		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY)');
+		db.run(
+			'CREATE TABLE "posts" ("id" INTEGER PRIMARY KEY, "user_id" INTEGER, "title" TEXT, FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE)',
+		);
+		db.run("INSERT INTO \"users\" VALUES (1)");
+		db.run("INSERT INTO \"posts\" VALUES (1, 1, 'Title')");
+
+		new Executor(db, [
+			{
+				type: "RebuildTable",
+				table: "posts",
+				createSql:
+					'CREATE TABLE IF NOT EXISTS "posts" ("id" INTEGER PRIMARY KEY, "user_id" INTEGER, FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE)',
+				columnCopies: [
+					{ name: "id", expr: '"id"' },
+					{ name: "user_id", expr: '"user_id"' },
+				],
+			},
+		]).execute();
+
+		db.run("INSERT INTO \"posts\" VALUES (2, 1)");
+		expect(() => db.run("INSERT INTO \"posts\" VALUES (3, 999)")).toThrow();
+
+		db.run('DELETE FROM "users" WHERE id = 1');
+		const posts = db.prepare('SELECT * FROM "posts"').all();
+
+		expect(posts).toHaveLength(0);
+	});
+
+	test("AddColumn with inline FK enforces constraint", () => {
+		const db = new BunDatabase(":memory:");
+		db.run("PRAGMA foreign_keys = ON");
+		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY)');
+		db.run('CREATE TABLE "posts" ("id" INTEGER PRIMARY KEY, "title" TEXT)');
+		db.run("INSERT INTO \"users\" VALUES (1)");
+
+		new Executor(db, [
+			{
+				type: "AddColumn",
+				table: "posts",
+				columnDef: '"user_id" INTEGER REFERENCES "users"("id") ON DELETE CASCADE',
+			},
+		]).execute();
+
+		db.run("INSERT INTO \"posts\" (id, title, user_id) VALUES (1, 'Post', 1)");
+		expect(() => db.run("INSERT INTO \"posts\" (id, title, user_id) VALUES (2, 'Bad', 999)")).toThrow();
+
+		db.run('DELETE FROM "users" WHERE id = 1');
+		const posts = db.prepare('SELECT * FROM "posts"').all();
+
+		expect(posts).toHaveLength(0);
+	});
+
+	test("rebuild throws on FK violation and rolls back", () => {
+		const db = new BunDatabase(":memory:");
+		db.run("PRAGMA foreign_keys = ON");
+		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL, "bio" TEXT)');
+		db.run(
+			'CREATE TABLE "posts" ("id" INTEGER PRIMARY KEY, "user_id" INTEGER, FOREIGN KEY ("user_id") REFERENCES "users"("id"))',
+		);
+		db.run("INSERT INTO \"users\" VALUES (1, 'Alice', 'Bio')");
+
+		db.run("PRAGMA foreign_keys = OFF");
+		db.run("INSERT INTO \"posts\" VALUES (1, 999)");
+		db.run("PRAGMA foreign_keys = ON");
+
+		expect(() => {
+			new Executor(db, [
+				{
+					type: "RebuildTable",
+					table: "users",
+					createSql:
+						'CREATE TABLE IF NOT EXISTS "users" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL)',
+					columnCopies: [
+						{ name: "id", expr: '"id"' },
+						{ name: "name", expr: '"name"' },
+					],
+				},
+			]).execute();
+		}).toThrow(/Foreign key check failed/);
+
+		expect(new Introspector(db).introspect().get("users")!.columns.has("bio")).toBe(true);
+
+		const { foreign_keys } = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number };
+
+		expect(foreign_keys).toBe(1);
+	});
 });
