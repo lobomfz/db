@@ -30,7 +30,11 @@ export class Executor {
 		try {
 			this.db.transaction(() => {
 				for (const op of this.ops) {
-					this.executeOp(op);
+					try {
+						this.executeOp(op);
+					} catch (e) {
+						throw this.parseError(e, op);
+					}
 				}
 
 				if (restoreFk) {
@@ -69,6 +73,22 @@ export class Executor {
 				return this.db.run(`DROP INDEX "${op.index}"`);
 			}
 		}
+	}
+
+	private parseError(e: unknown, op: MigrationOp) {
+		if (
+			op.type === "CreateIndex" &&
+			e instanceof Error &&
+			e.message.includes("UNIQUE constraint failed")
+		) {
+			const cols = op.columns.map((c) => `"${c}"`).join(", ");
+
+			return new Error(
+				`Cannot create unique index on table "${op.table}" (${cols}): duplicate values exist`,
+			);
+		}
+
+		return e;
 	}
 
 	private rebuildTable(op: RebuildTableOp) {

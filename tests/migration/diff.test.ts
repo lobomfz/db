@@ -467,7 +467,7 @@ describe("diff indexes", () => {
 				sql: "...",
 				columns: [col("id"), col("name")],
 				indexes: [
-					{ name: "ix_users_name", sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
+					{ name: "ix_users_name", columns: ["name"], sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
 				],
 			},
 		];
@@ -475,7 +475,7 @@ describe("diff indexes", () => {
 		const ops = new Differ(desired, makeExisting({ users: { columns: ["id", "name"] } })).diff();
 
 		expect(ops).toEqual([
-			{ type: "CreateIndex", sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
+			{ type: "CreateIndex", table: "users", columns: ["name"], sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
 		]);
 	});
 
@@ -501,7 +501,7 @@ describe("diff indexes", () => {
 				name: "users",
 				sql: "...",
 				columns: [col("id"), col("name")],
-				indexes: [{ name: "ix_users_name", sql: "..." }],
+				indexes: [{ name: "ix_users_name", columns: ["name"], sql: "..." }],
 			},
 		];
 
@@ -523,7 +523,7 @@ describe("diff indexes", () => {
 				sql: 'CREATE TABLE "users" ("id" TEXT, "name" TEXT)',
 				columns: [],
 				indexes: [
-					{ name: "ix_users_name", sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
+					{ name: "ix_users_name", columns: ["name"], sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
 				],
 			},
 		];
@@ -534,6 +534,8 @@ describe("diff indexes", () => {
 		expect(ops[0]!.type).toBe("CreateTable");
 		expect(ops[1]).toEqual({
 			type: "CreateIndex",
+			table: "users",
+			columns: ["name"],
 			sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")',
 		});
 	});
@@ -545,7 +547,7 @@ describe("diff indexes", () => {
 				sql: 'CREATE TABLE IF NOT EXISTS "users" ("id" TEXT, "name" TEXT)',
 				columns: [col("id"), col("name")],
 				indexes: [
-					{ name: "ix_users_name", sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
+					{ name: "ix_users_name", columns: ["name"], sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
 				],
 			},
 		];
@@ -557,6 +559,8 @@ describe("diff indexes", () => {
 		expect(ops[0]!.type).toBe("RebuildTable");
 		expect(ops[1]).toEqual({
 			type: "CreateIndex",
+			table: "users",
+			columns: ["name"],
 			sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")',
 		});
 	});
@@ -589,7 +593,7 @@ describe("diff indexes", () => {
 				sql: "...",
 				columns: [col("id"), col("name"), col("email")],
 				indexes: [
-					{ name: "ix_users_email", sql: 'CREATE INDEX "ix_users_email" ON "users" ("email")' },
+					{ name: "ix_users_email", columns: ["email"], sql: 'CREATE INDEX "ix_users_email" ON "users" ("email")' },
 				],
 			},
 		];
@@ -603,7 +607,7 @@ describe("diff indexes", () => {
 		const ops = new Differ(desired, existing).diff();
 
 		expect(ops).toEqual([
-			{ type: "CreateIndex", sql: 'CREATE INDEX "ix_users_email" ON "users" ("email")' },
+			{ type: "CreateIndex", table: "users", columns: ["email"], sql: 'CREATE INDEX "ix_users_email" ON "users" ("email")' },
 			{ type: "DropIndex", index: "ix_users_name" },
 		]);
 	});

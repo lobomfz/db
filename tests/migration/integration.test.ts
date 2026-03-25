@@ -1,6 +1,9 @@
 import { describe, test, expect } from "bun:test";
 import { Database as BunDatabase } from "bun:sqlite";
 import { type } from "arktype";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Introspector } from "../../src/migration/introspect";
 import { Executor } from "../../src/migration/execute";
 import { Database, generated } from "../../src/index.ts";
@@ -116,6 +119,47 @@ describe("migration integration", () => {
 		expect(after).toBe(before);
 	});
 
+	test("fails to add unique index when duplicate values exist", () => {
+		const path = join(mkdtempSync(join(tmpdir(), "db-test-")), "test.db");
+
+		const db = new Database({
+			path,
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						external_id: "string",
+						name: "string",
+					}),
+				},
+			},
+		});
+
+		const sqlite = (db as any).sqlite as BunDatabase;
+
+		sqlite.run(`INSERT INTO "items" ("external_id", "name") VALUES ('abc', 'First')`);
+		sqlite.run(`INSERT INTO "items" ("external_id", "name") VALUES ('abc', 'Second')`);
+
+		expect(
+			() =>
+				new Database({
+					path,
+					schema: {
+						tables: {
+							items: type({
+								id: generated("autoincrement"),
+								external_id: "string",
+								name: "string",
+							}),
+						},
+						indexes: {
+							items: [{ columns: ["external_id"], unique: true }],
+						},
+					},
+				}),
+		).toThrow('Cannot create unique index on table "items" ("external_id"): duplicate values exist');
+	});
+
 	test("composite index is created correctly", () => {
 		const sqlite = new BunDatabase(":memory:");
 		sqlite.run('CREATE TABLE "events" ("id" INTEGER PRIMARY KEY, "type" TEXT, "date" INTEGER)');
@@ -123,6 +167,8 @@ describe("migration integration", () => {
 		new Executor(sqlite, [
 			{
 				type: "CreateIndex",
+				table: "events",
+				columns: ["type", "date"],
 				sql: 'CREATE INDEX "ix_events_type_date" ON "events" ("type", "date")',
 			},
 		]).execute();

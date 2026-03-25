@@ -29,6 +29,8 @@ export type RebuildTableOp = {
 
 export type CreateIndexOp = {
 	type: "CreateIndex";
+	table: string;
+	columns: string[];
 	sql: string;
 };
 

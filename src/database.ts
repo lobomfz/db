@@ -335,6 +335,7 @@ export class Database<T extends SchemaRecord> {
 
 			const indexes = (schemaIndexes?.[name] ?? []).map((indexDef) => ({
 				name: this.generateIndexName(name, indexDef.columns, indexDef.unique ?? false),
+				columns: indexDef.columns,
 				sql: this.generateCreateIndexSQL(name, indexDef),
 			}));
 

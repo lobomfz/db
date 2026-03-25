@@ -7,6 +7,7 @@ export interface DesiredColumn extends ColumnSchema {
 
 export type DesiredIndex = {
 	name: string;
+	columns: string[];
 	sql: string;
 };
 
@@ -162,7 +163,7 @@ export class Differ {
 
 			if (this.rebuiltTables.has(table.name)) {
 				for (const idx of tableIndexes) {
-					this.ops.push({ type: "CreateIndex", sql: idx.sql });
+					this.ops.push({ type: "CreateIndex", table: table.name, columns: idx.columns, sql: idx.sql });
 				}
 
 				continue;
@@ -179,7 +180,7 @@ export class Differ {
 
 			for (const idx of tableIndexes) {
 				if (!existingNames.has(idx.name)) {
-					this.ops.push({ type: "CreateIndex", sql: idx.sql });
+					this.ops.push({ type: "CreateIndex", table: table.name, columns: idx.columns, sql: idx.sql });
 				}
 			}
 
