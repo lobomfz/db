@@ -1,6 +1,6 @@
 {
 	"name": "@lobomfz/db",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Bun SQLite database with Arktype schemas and typed Kysely client",
 	"keywords": [
 		"arktype",

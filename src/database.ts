@@ -1,5 +1,5 @@
 import { Database as BunDatabase } from "bun:sqlite";
-import { Kysely } from "kysely";
+import { Kysely, ParseJSONResultsPlugin } from "kysely";
 import { BunSqliteDialect } from "./dialect/dialect";
 import type { Type } from "arktype";
 import type { GeneratedPreset } from "./generated";
@@ -82,7 +82,7 @@ export class Database<T extends SchemaRecord> {
 
 		this.kysely = new Kysely<TablesFromSchemas<T>>({
 			dialect: new BunSqliteDialect({ database: this.sqlite }),
-			plugins: [new DeserializePlugin(this.columns, validation)],
+			plugins: [new DeserializePlugin(this.columns, validation), new ParseJSONResultsPlugin()],
 		});
 	}
 
