@@ -80,6 +80,36 @@ describe("basic", () => {
 		expect(items).toEqual([]);
 	});
 
+	test("reset clears all tables with foreign key dependencies", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					users: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						name: "string",
+					}),
+					posts: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						title: "string",
+						user_id: type("number.integer").configure({ references: "users.id" }),
+					}),
+				},
+			},
+		});
+
+		await db.kysely.insertInto("users").values({ id: 1, name: "Alice" }).execute();
+		await db.kysely.insertInto("posts").values({ id: 1, title: "Hello", user_id: 1 }).execute();
+
+		db.reset();
+
+		const users = await db.kysely.selectFrom("users").selectAll().execute();
+		const posts = await db.kysely.selectFrom("posts").selectAll().execute();
+
+		expect(users).toEqual([]);
+		expect(posts).toEqual([]);
+	});
+
 	test("reset clears single table", async () => {
 		const db = new Database({
 			path: ":memory:",

@@ -365,8 +365,12 @@ export class Database<T extends SchemaRecord> {
 	reset(table?: keyof T & string): void {
 		const tables = table ? [table] : Object.keys(this.options.schema.tables);
 
+		this.sqlite.run("PRAGMA foreign_keys = OFF");
+
 		for (const t of tables) {
 			this.sqlite.run(`DELETE FROM "${t}"`);
 		}
+
+		this.sqlite.run("PRAGMA foreign_keys = ON");
 	}
 }
