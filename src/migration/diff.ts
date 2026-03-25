@@ -100,6 +100,12 @@ export class Differ {
 				continue;
 			}
 
+			if (!existing.notnull && col.notnull && col.defaultValue === null && existing.hasNulls) {
+				throw new Error(
+					`Cannot make column "${col.name}" NOT NULL without DEFAULT in table "${table.name}" with existing data`,
+				);
+			}
+
 			if (!existing.notnull && col.notnull && col.defaultValue !== null) {
 				columnCopies.push({ name: col.name, expr: `COALESCE("${col.name}", ${col.defaultValue})` });
 			} else {

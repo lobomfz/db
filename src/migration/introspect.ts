@@ -119,15 +119,19 @@ export class Introspector {
 
 		for (const col of colRows) {
 			const fk = fkMap.get(col.name);
+			const isNotnull = col.notnull === 1;
 
 			columns.set(col.name, {
 				name: col.name,
 				type: col.type,
-				notnull: col.notnull === 1,
+				notnull: isNotnull,
 				defaultValue: col.dflt_value,
 				unique: uniqueCols.has(col.name),
 				references: fk?.references ?? null,
 				onDelete: fk?.onDelete ?? null,
+				hasNulls:
+					!isNotnull &&
+					this.db.prepare(`SELECT 1 FROM "${table}" WHERE "${col.name}" IS NULL LIMIT 1`).get() !== null,
 			});
 		}
 

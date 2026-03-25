@@ -53,6 +53,7 @@ export type IntrospectedColumn = {
 	unique: boolean;
 	references: string | null;
 	onDelete: string | null;
+	hasNulls: boolean;
 };
 
 export type IntrospectedIndex = {

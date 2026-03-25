@@ -1,10 +1,7 @@
 import { describe, test, expect } from "bun:test";
-import type {
-	IntrospectedTable,
-	IntrospectedIndex,
-	IntrospectedColumn,
-} from "../../src/migration/types";
-import { Differ, type DesiredTable, type DesiredColumn } from "../../src/migration/diff";
+import type { IntrospectedTable, IntrospectedIndex, IntrospectedColumn } from "../../src/migration/types";
+import { Differ, type DesiredTable } from "../../src/migration/diff";
+import { col } from "./helpers";
 
 function makeExisting(
 	tables: Record<
@@ -21,30 +18,18 @@ function makeExisting(
 			name,
 			{
 				columns: new Map(
-					(info.columns ?? []).map((col) => {
-						if (typeof col === "string") {
-							return [
-								col,
-								{
-									name: col,
-									type: "TEXT",
-									notnull: false,
-									defaultValue: null,
-									unique: false,
-									references: null,
-									onDelete: null,
-								},
-							];
-						}
+					(info.columns ?? []).map((raw) => {
+						const partial = typeof raw === "string" ? { name: raw } : raw;
 
-						const c = {
-							name: col.name!,
-							type: col.type ?? "TEXT",
-							notnull: col.notnull ?? false,
-							defaultValue: col.defaultValue ?? null,
-							unique: col.unique ?? false,
-							references: col.references ?? null,
-							onDelete: col.onDelete ?? null,
+						const c: IntrospectedColumn = {
+							name: partial.name!,
+							type: partial.type ?? "TEXT",
+							notnull: partial.notnull ?? false,
+							defaultValue: partial.defaultValue ?? null,
+							unique: partial.unique ?? false,
+							references: partial.references ?? null,
+							onDelete: partial.onDelete ?? null,
+							hasNulls: partial.hasNulls ?? false,
 						};
 
 						return [c.name, c];
@@ -55,21 +40,6 @@ function makeExisting(
 			},
 		]),
 	);
-}
-
-function col(name: string, overrides?: Partial<DesiredColumn>): DesiredColumn {
-	return {
-		name,
-		addable: true,
-		columnDef: `"${name}" TEXT`,
-		type: "TEXT",
-		notnull: false,
-		defaultValue: null,
-		unique: false,
-		references: null,
-		onDelete: null,
-		...overrides,
-	};
 }
 
 describe("diff", () => {
@@ -108,8 +78,7 @@ describe("diff", () => {
 
 		const ops = new Differ(desired, makeExisting({ users: { columns: ["id"] } })).diff();
 
-		expect(ops).toHaveLength(1);
-		expect(ops[0]!.table).toBe("posts");
+		expect(ops).toEqual([{ type: "CreateTable", table: "posts", sql: desired[1]!.sql }]);
 	});
 
 	test("produces DropTable for orphan tables", () => {
@@ -160,7 +129,6 @@ describe("diff", () => {
 				columns: [
 					col("id"),
 					col("status", {
-						addable: true,
 						notnull: true,
 						defaultValue: "'active'",
 						columnDef: "\"status\" TEXT NOT NULL DEFAULT 'active'",
@@ -363,9 +331,15 @@ describe("diff", () => {
 			t: { columns: [{ name: "id" }, { name: "val", type: "TEXT" }] },
 		});
 		const ops = new Differ(desired, existing).diff();
-		const rebuild = ops[0] as any;
 
-		expect(rebuild.columnCopies).toEqual([{ name: "id", expr: '"id"' }]);
+		expect(ops).toEqual([
+			{
+				type: "RebuildTable",
+				table: "t",
+				createSql: "...",
+				columnCopies: [{ name: "id", expr: '"id"' }],
+			},
+		]);
 	});
 
 	test("type changed NOT NULL with DEFAULT excluded from columnCopies", () => {
@@ -381,9 +355,15 @@ describe("diff", () => {
 			t: { columns: [{ name: "id" }, { name: "val", type: "TEXT" }] },
 		});
 		const ops = new Differ(desired, existing).diff();
-		const rebuild = ops[0] as any;
 
-		expect(rebuild.columnCopies).toEqual([{ name: "id", expr: '"id"' }]);
+		expect(ops).toEqual([
+			{
+				type: "RebuildTable",
+				table: "t",
+				createSql: "...",
+				columnCopies: [{ name: "id", expr: '"id"' }],
+			},
+		]);
 	});
 
 	test("type changed NOT NULL without DEFAULT throws on table with data", () => {
@@ -417,11 +397,17 @@ describe("diff", () => {
 			t: { columns: [{ name: "id" }, { name: "status", notnull: false }] },
 		});
 		const ops = new Differ(desired, existing).diff();
-		const rebuild = ops[0] as any;
 
-		expect(rebuild.columnCopies).toEqual([
-			{ name: "id", expr: '"id"' },
-			{ name: "status", expr: "COALESCE(\"status\", 'active')" },
+		expect(ops).toEqual([
+			{
+				type: "RebuildTable",
+				table: "t",
+				createSql: "...",
+				columnCopies: [
+					{ name: "id", expr: '"id"' },
+					{ name: "status", expr: "COALESCE(\"status\", 'active')" },
+				],
+			},
 		]);
 	});
 
@@ -434,11 +420,17 @@ describe("diff", () => {
 			t: { columns: [{ name: "id" }, { name: "name", notnull: true }] },
 		});
 		const ops = new Differ(desired, existing).diff();
-		const rebuild = ops[0] as any;
 
-		expect(rebuild.columnCopies).toEqual([
-			{ name: "id", expr: '"id"' },
-			{ name: "name", expr: '"name"' },
+		expect(ops).toEqual([
+			{
+				type: "RebuildTable",
+				table: "t",
+				createSql: "...",
+				columnCopies: [
+					{ name: "id", expr: '"id"' },
+					{ name: "name", expr: '"name"' },
+				],
+			},
 		]);
 	});
 
