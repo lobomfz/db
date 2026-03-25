@@ -12,6 +12,9 @@ import type {
 	TablesFromSchemas,
 	DatabasePragmas,
 } from "./types";
+import { Introspector } from "./migration/introspect";
+import { Differ, type DesiredTable } from "./migration/diff";
+import { Executor } from "./migration/execute";
 
 type ArkBranch = {
 	domain?: string;
@@ -70,7 +73,7 @@ export class Database<T extends SchemaRecord> {
 
 		this.applyPragmas();
 
-		this.createTables();
+		this.migrate();
 
 		const validation = {
 			onRead: options.validation?.onRead ?? false,
@@ -233,6 +236,23 @@ export class Database<T extends SchemaRecord> {
 		return fk;
 	}
 
+	private addColumnDef(prop: Prop) {
+		let def = this.columnDef(prop);
+
+		const ref = prop.meta?.references;
+
+		if (ref) {
+			const [table, column] = ref.split(".");
+			def += ` REFERENCES "${table}"("${column}")`;
+
+			if (prop.meta?.onDelete) {
+				def += ` ON DELETE ${prop.meta.onDelete.toUpperCase()}`;
+			}
+		}
+
+		return def;
+	}
+
 	private parseSchemaProps(schema: Type) {
 		const structureProps = (schema as any).structure?.props as StructureProp[] | undefined;
 
@@ -284,15 +304,47 @@ export class Database<T extends SchemaRecord> {
 		return `CREATE TABLE IF NOT EXISTS "${tableName}" (${columns.concat(fks).join(", ")})`;
 	}
 
-	private createTables() {
+	private migrate() {
+		const desiredTables: DesiredTable[] = [];
+		const schemaIndexes = this.options.schema.indexes;
+
 		for (const [name, schema] of Object.entries(this.options.schema.tables)) {
 			const props = this.parseSchemaProps(schema);
 
 			this.registerColumns(name, props);
-			this.sqlite.run(this.generateCreateTableSQL(name, props));
+
+			const columns = props.map((prop) => {
+				const isNotNull = this.columnConstraint(prop) === "NOT NULL";
+				const defaultClause = this.defaultClause(prop);
+				const hasLiteralDefault = prop.generated !== "now" && defaultClause !== null;
+
+				return {
+					name: prop.key,
+					addable: !isNotNull || hasLiteralDefault,
+					columnDef: this.addColumnDef(prop),
+					type: this.sqlType(prop),
+					notnull: isNotNull,
+					defaultValue: defaultClause
+					? defaultClause.replace("DEFAULT ", "").replace(/^\((.+)\)$/, "$1")
+					: null,
+					unique: !!prop.meta?.unique,
+					references: prop.meta?.references ?? null,
+					onDelete: prop.meta?.onDelete?.toUpperCase() ?? null,
+				};
+			});
+
+			const indexes = (schemaIndexes?.[name] ?? []).map((indexDef) => ({
+				name: this.generateIndexName(name, indexDef.columns, indexDef.unique ?? false),
+				sql: this.generateCreateIndexSQL(name, indexDef),
+			}));
+
+			desiredTables.push({ name, sql: this.generateCreateTableSQL(name, props), columns, indexes });
 		}
 
-		this.createIndexes();
+		const existing = new Introspector(this.sqlite).introspect();
+		const ops = new Differ(desiredTables, existing).diff();
+
+		new Executor(this.sqlite, ops).execute();
 	}
 
 	private generateIndexName(tableName: string, columns: string[], unique: boolean) {
@@ -306,25 +358,7 @@ export class Database<T extends SchemaRecord> {
 		const unique = indexDef.unique ? "UNIQUE " : "";
 		const columns = indexDef.columns.map((c) => `"${c}"`).join(", ");
 
-		return `CREATE ${unique}INDEX IF NOT EXISTS "${indexName}" ON "${tableName}" (${columns})`;
-	}
-
-	private createIndexes() {
-		const indexes = this.options.schema.indexes;
-
-		if (!indexes) {
-			return;
-		}
-
-		for (const [tableName, tableIndexes] of Object.entries(indexes)) {
-			if (!tableIndexes) {
-				continue;
-			}
-
-			for (const indexDef of tableIndexes) {
-				this.sqlite.run(this.generateCreateIndexSQL(tableName, indexDef));
-			}
-		}
+		return `CREATE ${unique}INDEX "${indexName}" ON "${tableName}" (${columns})`;
 	}
 
 	reset(table?: keyof T & string): void {
@@ -334,5 +368,4 @@ export class Database<T extends SchemaRecord> {
 			this.sqlite.run(`DELETE FROM "${t}"`);
 		}
 	}
-
 }

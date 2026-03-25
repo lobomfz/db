@@ -21,11 +21,7 @@ describe("stream", () => {
 
 		const results: unknown[] = [];
 
-		for await (const row of db.kysely
-			.selectFrom("flags")
-			.selectAll()
-			.orderBy("id")
-			.stream()) {
+		for await (const row of db.kysely.selectFrom("flags").selectAll().orderBy("id").stream()) {
 			results.push(row);
 		}
 
@@ -56,11 +52,7 @@ describe("stream", () => {
 
 		const results: any[] = [];
 
-		for await (const row of db.kysely
-			.selectFrom("events")
-			.selectAll()
-			.orderBy("id")
-			.stream()) {
+		for await (const row of db.kysely.selectFrom("events").selectAll().orderBy("id").stream()) {
 			results.push(row);
 		}
 
@@ -84,16 +76,18 @@ describe("stream", () => {
 			},
 		});
 
-		await db.kysely.insertInto("items").values({ data: { value: 42 } }).execute();
-		await db.kysely.insertInto("items").values({ data: { value: 99 } }).execute();
+		await db.kysely
+			.insertInto("items")
+			.values({ data: { value: 42 } })
+			.execute();
+		await db.kysely
+			.insertInto("items")
+			.values({ data: { value: 99 } })
+			.execute();
 
 		const results: any[] = [];
 
-		for await (const row of db.kysely
-			.selectFrom("items")
-			.selectAll()
-			.orderBy("id")
-			.stream()) {
+		for await (const row of db.kysely.selectFrom("items").selectAll().orderBy("id").stream()) {
 			results.push(row);
 		}
 
@@ -121,11 +115,7 @@ describe("stream", () => {
 
 		const results: unknown[] = [];
 
-		for await (const row of db.kysely
-			.selectFrom("items")
-			.selectAll()
-			.orderBy("id")
-			.stream()) {
+		for await (const row of db.kysely.selectFrom("items").selectAll().orderBy("id").stream()) {
 			results.push(row);
 		}
 

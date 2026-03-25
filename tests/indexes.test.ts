@@ -57,7 +57,10 @@ describe("indexes", () => {
 			.execute();
 
 		await expect(() =>
-			db.kysely.insertInto("posts").values({ user_id: 1, category_id: 1, title: "Duplicate" }).execute(),
+			db.kysely
+				.insertInto("posts")
+				.values({ user_id: 1, category_id: 1, title: "Duplicate" })
+				.execute(),
 		).toThrow();
 	});
 
@@ -182,9 +185,18 @@ describe("indexes", () => {
 			},
 		});
 
-		await db.kysely.insertInto("posts").values({ user_id: 1, category_id: 1, title: "A" }).execute();
-		await db.kysely.insertInto("posts").values({ user_id: 1, category_id: 2, title: "B" }).execute();
-		await db.kysely.insertInto("posts").values({ user_id: 2, category_id: 1, title: "C" }).execute();
+		await db.kysely
+			.insertInto("posts")
+			.values({ user_id: 1, category_id: 1, title: "A" })
+			.execute();
+		await db.kysely
+			.insertInto("posts")
+			.values({ user_id: 1, category_id: 2, title: "B" })
+			.execute();
+		await db.kysely
+			.insertInto("posts")
+			.values({ user_id: 2, category_id: 1, title: "C" })
+			.execute();
 
 		const posts = await db.kysely.selectFrom("posts").selectAll().execute();
 
@@ -210,5 +222,4 @@ describe("indexes", () => {
 
 		expect(items).toHaveLength(1);
 	});
-
 });

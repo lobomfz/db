@@ -13,6 +13,8 @@ const generatedTypes = {
 			.default(() => new Date(0)),
 };
 
-export function generated<P extends GeneratedPreset>(preset: P): ReturnType<(typeof generatedTypes)[P]> {
+export function generated<P extends GeneratedPreset>(
+	preset: P,
+): ReturnType<(typeof generatedTypes)[P]> {
 	return generatedTypes[preset]() as ReturnType<(typeof generatedTypes)[P]>;
 }

@@ -331,4 +331,59 @@ describe("types", () => {
 		expect(result.active).toBe(true);
 	});
 
+	test("or date filter coerces date columns in partial select", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					events: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						status: type.enumerated("active", "inactive"),
+						started_at: "Date",
+					}),
+				},
+			},
+		});
+
+		const now = Math.floor(Date.now() / 1000) * 1000;
+		const cutoff = new Date(now - 24 * 60 * 60 * 1000);
+		const old = new Date(cutoff.getTime() - 60 * 60 * 1000);
+		const recent = new Date(cutoff.getTime() + 60 * 60 * 1000);
+
+		await db.kysely
+			.insertInto("events")
+			.values([
+				{
+					id: 1,
+					status: "active",
+					started_at: old,
+				},
+				{
+					id: 2,
+					status: "inactive",
+					started_at: recent,
+				},
+				{
+					id: 3,
+					status: "inactive",
+					started_at: old,
+				},
+			])
+			.execute();
+
+		const events = await db.kysely
+			.selectFrom("events as e")
+			.where((eb) => eb.or([eb("e.status", "=", "active"), eb("e.started_at", ">=", cutoff)]))
+			.select(["e.id", "e.started_at"])
+			.orderBy("e.id")
+			.execute();
+
+		expect(events).toHaveLength(2);
+		expect(events[0]!.id).toBe(1);
+		expect(events[0]!.started_at).toBeInstanceOf(Date);
+		expect(events[0]!.started_at.getTime()).toBe(old.getTime());
+		expect(events[1]!.id).toBe(2);
+		expect(events[1]!.started_at).toBeInstanceOf(Date);
+		expect(events[1]!.started_at.getTime()).toBe(recent.getTime());
+	});
 });

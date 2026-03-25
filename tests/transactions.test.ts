@@ -72,7 +72,10 @@ describe("transactions", () => {
 
 		await Promise.all(
 			Array.from({ length: 50 }, (_, i) =>
-				db.kysely.insertInto("items").values({ name: `item-${i}` }).execute(),
+				db.kysely
+					.insertInto("items")
+					.values({ name: `item-${i}` })
+					.execute(),
 			),
 		);
 
