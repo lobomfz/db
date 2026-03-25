@@ -320,7 +320,10 @@ describe("JSON columns", () => {
 			},
 		});
 
-		await db.kysely.insertInto("items").values({ data: { value: 1 } }).execute();
+		await db.kysely
+			.insertInto("items")
+			.values({ data: { value: 1 } })
+			.execute();
 
 		const updated = await db.kysely
 			.updateTable("items")
@@ -347,7 +350,10 @@ describe("JSON columns", () => {
 		});
 
 		await expect(() =>
-			db.kysely.insertInto("items").values({ data: { value: "not a number" } } as any).execute(),
+			db.kysely
+				.insertInto("items")
+				.values({ data: { value: "not a number" } } as any)
+				.execute(),
 		).toThrow(JsonValidationError);
 	});
 
@@ -364,7 +370,10 @@ describe("JSON columns", () => {
 			},
 		});
 
-		await db.kysely.insertInto("items").values({ data: { value: 1 } }).execute();
+		await db.kysely
+			.insertInto("items")
+			.values({ data: { value: 1 } })
+			.execute();
 
 		await expect(() =>
 			db.kysely
@@ -389,7 +398,10 @@ describe("JSON columns", () => {
 		});
 
 		await db.kysely.insertInto("items").values({ data: null }).execute();
-		await db.kysely.insertInto("items").values({ data: { value: 42 } }).execute();
+		await db.kysely
+			.insertInto("items")
+			.values({ data: { value: 42 } })
+			.execute();
 
 		const items = await db.kysely.selectFrom("items").selectAll().orderBy("id").execute();
 

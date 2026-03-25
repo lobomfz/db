@@ -17,7 +17,10 @@ describe("constraints", () => {
 		});
 
 		await expect(() =>
-			db.kysely.insertInto("items").values({ id: 1, name: null as any }).execute(),
+			db.kysely
+				.insertInto("items")
+				.values({ id: 1, name: null as any })
+				.execute(),
 		).toThrow();
 	});
 
@@ -194,5 +197,4 @@ describe("constraints", () => {
 
 		await expect(() => db.kysely.deleteFrom("users").where("id", "=", 1).execute()).toThrow();
 	});
-
 });

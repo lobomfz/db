@@ -90,5 +90,4 @@ describe("generated", () => {
 
 		expect(item?.active).toBe(true);
 	});
-
 });

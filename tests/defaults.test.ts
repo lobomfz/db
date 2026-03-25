@@ -226,11 +226,7 @@ describe("defaults", () => {
 				.insertInto("items")
 				.values({ name: "Test", deleted_at: "2026-01-15T12:00:00Z" })
 				.execute();
-			await db.kysely
-				.updateTable("items")
-				.set({ deleted_at: null })
-				.where("id", "=", 1)
-				.execute();
+			await db.kysely.updateTable("items").set({ deleted_at: null }).where("id", "=", 1).execute();
 
 			const item = await db.kysely.selectFrom("items").selectAll().executeTakeFirst();
 

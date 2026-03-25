@@ -14,35 +14,35 @@ bun add @lobomfz/db arktype kysely
 import { Database, generated, type } from "@lobomfz/db";
 
 const db = new Database({
-  path: "data.db",
-  schema: {
-    tables: {
-      users: type({
-        id: generated("autoincrement"),
-        name: "string",
-        email: type("string").configure({ unique: true }),
-        "bio?": "string",                    // optional → nullable in SQLite
-        active: type("boolean").default(true),
-        created_at: generated("now"),          // defaults to current time
-      }),
-      posts: type({
-        id: generated("autoincrement"),
-        user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
-        title: "string",
-        published_at: "Date",                   // native Date support
-        tags: "string[]",                      // JSON columns just work
-        metadata: type({ source: "string", "priority?": "number" }), // validated on write by default
-        status: type.enumerated("draft", "published").default("draft"),
-      }),
-    },
-    indexes: {
-      posts: [{ columns: ["user_id", "status"] }, { columns: ["title"], unique: true }],
-    },
-  },
-  pragmas: {
-    journal_mode: "wal",
-    synchronous: "normal",
-  },
+	path: "data.db",
+	schema: {
+		tables: {
+			users: type({
+				id: generated("autoincrement"),
+				name: "string",
+				email: type("string").configure({ unique: true }),
+				"bio?": "string", // optional → nullable in SQLite
+				active: type("boolean").default(true),
+				created_at: generated("now"), // defaults to current time
+			}),
+			posts: type({
+				id: generated("autoincrement"),
+				user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
+				title: "string",
+				published_at: "Date", // native Date support
+				tags: "string[]", // JSON columns just work
+				metadata: type({ source: "string", "priority?": "number" }), // validated on write by default
+				status: type.enumerated("draft", "published").default("draft"),
+			}),
+		},
+		indexes: {
+			posts: [{ columns: ["user_id", "status"] }, { columns: ["title"], unique: true }],
+		},
+	},
+	pragmas: {
+		journal_mode: "wal",
+		synchronous: "normal",
+	},
 });
 
 // Fully typed Kysely client — generated/default fields are optional on insert
@@ -58,10 +58,10 @@ Booleans, dates, objects, arrays — everything round-trips as the type you decl
 ## API
 
 ```typescript
-generated("autoincrement");                                               // auto-incrementing primary key
-generated("now");                                                         // defaults to current timestamp, returned as Date
-type("string").default("pending");                                        // SQL DEFAULT
-type("string").configure({ unique: true });                               // UNIQUE
+generated("autoincrement"); // auto-incrementing primary key
+generated("now"); // defaults to current timestamp, returned as Date
+type("string").default("pending"); // SQL DEFAULT
+type("string").configure({ unique: true }); // UNIQUE
 type("number.integer").configure({ references: "users.id", onDelete: "cascade" }); // FK
 ```
 
@@ -69,8 +69,8 @@ JSON columns are validated against the schema on write by default. To also valid
 
 ```typescript
 new Database({
-  // ...
-  validation: { onRead: true },  // default: { onRead: false, onWrite: true }
+	// ...
+	validation: { onRead: true }, // default: { onRead: false, onWrite: true }
 });
 ```
 
