@@ -302,7 +302,7 @@ describe("execute", () => {
 		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "name" TEXT)');
 
 		new Executor(db, [
-			{ type: "CreateIndex", sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
+			{ type: "CreateIndex", table: "users", columns: ["name"], sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
 		]).execute();
 
 		expect(new Introspector(db).introspect().get("users")!.indexes).toHaveLength(1);
@@ -323,7 +323,7 @@ describe("execute", () => {
 		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "email" TEXT)');
 
 		new Executor(db, [
-			{ type: "CreateIndex", sql: 'CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email")' },
+			{ type: "CreateIndex", table: "users", columns: ["email"], sql: 'CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email")' },
 		]).execute();
 
 		db.run("INSERT INTO \"users\" VALUES (1, 'a@b.com')");

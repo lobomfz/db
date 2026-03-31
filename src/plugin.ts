@@ -1,22 +1,34 @@
+import { type } from "arktype";
+import type { Type } from "arktype";
 import {
 	type KyselyPlugin,
+	type OperationNode,
 	type RootOperationNode,
 	type UnknownRow,
 	type QueryId,
+	AggregateFunctionNode,
 	TableNode,
 	AliasNode,
 	ValuesNode,
 	ValueNode,
 	ColumnNode,
+	IdentifierNode,
+	ReferenceNode,
+	ParensNode,
+	CastNode,
+	SelectQueryNode,
 } from "kysely";
-import { type } from "arktype";
-import type { Type } from "arktype";
+
 import { JsonParseError } from "./errors";
-import { JsonValidationError } from "./validation-error";
 import type { JsonValidation } from "./types";
+import { JsonValidationError } from "./validation-error";
 
 export type ColumnCoercion = "boolean" | "date" | { type: "json"; schema: Type };
 export type ColumnsMap = Map<string, Map<string, ColumnCoercion>>;
+
+type ResolvedCoercion = { table: string; coercion: ColumnCoercion };
+
+const typePreservingAggregateFunctions = new Set(["max", "min"]);
 
 export class DeserializePlugin implements KyselyPlugin {
 	private queryNodes = new WeakMap<QueryId, RootOperationNode>();
@@ -198,6 +210,185 @@ export class DeserializePlugin implements KyselyPlugin {
 		}
 	}
 
+	private getIdentifierName(node: OperationNode | undefined) {
+		if (!node || !IdentifierNode.is(node)) {
+			return null;
+		}
+
+		return node.name;
+	}
+
+	private addTableScopeEntry(scope: Map<string, string>, node: OperationNode) {
+		if (AliasNode.is(node) && TableNode.is(node.node)) {
+			const alias = this.getIdentifierName(node.alias);
+			const table = node.node.table.identifier.name;
+
+			scope.set(table, table);
+
+			if (alias) {
+				scope.set(alias, table);
+			}
+
+			return;
+		}
+
+		if (TableNode.is(node)) {
+			const table = node.table.identifier.name;
+			scope.set(table, table);
+		}
+	}
+
+	private getTableScope(node: SelectQueryNode) {
+		const scope = new Map<string, string>();
+
+		for (const fromNode of node.from?.froms ?? []) {
+			this.addTableScopeEntry(scope, fromNode);
+		}
+
+		for (const join of node.joins ?? []) {
+			this.addTableScopeEntry(scope, join.table);
+		}
+
+		return scope;
+	}
+
+	private resolveReferenceCoercion(node: ReferenceNode | ColumnNode, scope: Map<string, string>) {
+		const column = ColumnNode.is(node)
+			? node.column.name
+			: ColumnNode.is(node.column)
+				? node.column.column.name
+				: null;
+
+		if (!column) {
+			return null;
+		}
+
+		if (ReferenceNode.is(node) && node.table) {
+			const tableRef = node.table.table.identifier.name;
+			const table = scope.get(tableRef) ?? tableRef;
+			const coercion = this.columns.get(table)?.get(column);
+
+			if (!coercion) {
+				return null;
+			}
+
+			return { table, coercion } satisfies ResolvedCoercion;
+		}
+
+		let match: ResolvedCoercion | null = null;
+		const resolvedTables = new Set<string>();
+
+		for (const table of scope.values()) {
+			if (resolvedTables.has(table)) {
+				continue;
+			}
+
+			resolvedTables.add(table);
+
+			const coercion = this.columns.get(table)?.get(column);
+
+			if (!coercion) {
+				continue;
+			}
+
+			if (match) {
+				return null;
+			}
+
+			match = { table, coercion };
+		}
+
+		return match;
+	}
+
+	private resolveSelectionCoercion(node: OperationNode, scope: Map<string, string>): ResolvedCoercion | null {
+		if (AliasNode.is(node)) {
+			return this.resolveSelectionCoercion(node.node, scope);
+		}
+
+		if (ReferenceNode.is(node) || ColumnNode.is(node)) {
+			return this.resolveReferenceCoercion(node, scope);
+		}
+
+		if (SelectQueryNode.is(node)) {
+			return this.resolveScalarSubqueryCoercion(node);
+		}
+
+		if (AggregateFunctionNode.is(node)) {
+			if (
+				node.aggregated.length !== 1 ||
+				!typePreservingAggregateFunctions.has(node.func.toLowerCase())
+			) {
+				return null;
+			}
+
+			return this.resolveSelectionCoercion(node.aggregated[0]!, scope);
+		}
+
+		if (ParensNode.is(node)) {
+			return this.resolveSelectionCoercion(node.node, scope);
+		}
+
+		if (CastNode.is(node)) {
+			return null;
+		}
+
+		return null;
+	}
+
+	private resolveScalarSubqueryCoercion(node: SelectQueryNode) {
+		if (!node.selections || node.selections.length !== 1) {
+			return null;
+		}
+
+		return this.resolveSelectionCoercion(
+			node.selections[0]!.selection,
+			this.getTableScope(node),
+		);
+	}
+
+	private getSelectionOutputName(node: OperationNode) {
+		if (AliasNode.is(node)) {
+			return this.getIdentifierName(node.alias);
+		}
+
+		if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
+			return node.column.column.name;
+		}
+
+		if (ColumnNode.is(node)) {
+			return node.column.name;
+		}
+
+		return null;
+	}
+
+	private getSelectCoercions(node: RootOperationNode) {
+		const result = new Map<string, ResolvedCoercion>();
+
+		if (node.kind !== "SelectQueryNode" || !node.selections) {
+			return result;
+		}
+
+		const scope = this.getTableScope(node);
+
+		for (const selectionNode of node.selections) {
+			const output = this.getSelectionOutputName(selectionNode.selection);
+
+			if (!output) {
+				continue;
+			}
+
+			const resolved = this.resolveSelectionCoercion(selectionNode.selection, scope);
+
+			if (resolved) {
+				result.set(output, resolved);
+			}
+		}
+
+		return result;
+	}
+
 	transformResult: KyselyPlugin["transformResult"] = async (args) => {
 		const node = this.queryNodes.get(args.queryId);
 
@@ -213,6 +404,7 @@ export class DeserializePlugin implements KyselyPlugin {
 
 		const mainCols = this.columns.get(table);
 		const mainTableColumns = this.tableColumns.get(table);
+		const selectCoercions = this.getSelectCoercions(node);
 
 		for (const row of args.result.rows) {
 			if (mainCols) {
@@ -220,6 +412,13 @@ export class DeserializePlugin implements KyselyPlugin {
 			}
 
 			for (const col of Object.keys(row)) {
+				const resolved = selectCoercions.get(col);
+
+				if (resolved) {
+					this.coerceSingle(resolved.table, row, col, resolved.coercion);
+					continue;
+				}
+
 				if (mainTableColumns?.has(col)) {
 					continue;
 				}
