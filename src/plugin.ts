@@ -23,6 +23,7 @@ export class DeserializePlugin implements KyselyPlugin {
 
 	constructor(
 		private columns: ColumnsMap,
+		private tableColumns: Map<string, Set<string>>,
 		private validation: Required<JsonValidation>,
 	) {}
 
@@ -149,47 +150,51 @@ export class DeserializePlugin implements KyselyPlugin {
 		}
 	}
 
+	private coerceSingle(table: string, row: UnknownRow, col: string, coercion: ColumnCoercion) {
+		if (coercion === "boolean") {
+			if (typeof row[col] === "number") {
+				row[col] = row[col] === 1;
+			}
+
+			return;
+		}
+
+		if (coercion === "date") {
+			if (typeof row[col] === "number") {
+				row[col] = new Date(row[col] * 1000);
+			}
+
+			return;
+		}
+
+		if (typeof row[col] !== "string") {
+			return;
+		}
+
+		const value = row[col];
+
+		let parsed: unknown;
+
+		try {
+			parsed = JSON.parse(value);
+		} catch (e) {
+			throw new JsonParseError(table, col, value, e);
+		}
+
+		if (this.validation.onRead) {
+			this.validateJsonValue(table, col, parsed, coercion.schema);
+		}
+
+		row[col] = parsed;
+	}
+
 	private coerceRow(table: string, row: UnknownRow, cols: Map<string, ColumnCoercion>) {
 		for (const [col, coercion] of cols) {
 			if (!(col in row)) {
 				continue;
 			}
 
-			if (coercion === "boolean") {
-				if (typeof row[col] === "number") {
-					row[col] = row[col] === 1;
-				}
-
-				continue;
-			}
-
-			if (coercion === "date") {
-				if (typeof row[col] === "number") {
-					row[col] = new Date(row[col] * 1000);
-				}
-
-				continue;
-			}
-
-			if (typeof row[col] !== "string") {
-				continue;
-			}
-
-			const value = row[col];
-
-			let parsed: unknown;
-
-			try {
-				parsed = JSON.parse(value);
-			} catch (e) {
-				throw new JsonParseError(table, col, value, e);
-			}
-
-			if (this.validation.onRead) {
-				this.validateJsonValue(table, col, parsed, coercion.schema);
-			}
-
-			row[col] = parsed;
+			this.coerceSingle(table, row, col, coercion);
 		}
 	}
 
@@ -206,14 +211,32 @@ export class DeserializePlugin implements KyselyPlugin {
 			return args.result;
 		}
 
-		const cols = this.columns.get(table);
-
-		if (!cols) {
-			return args.result;
-		}
+		const mainCols = this.columns.get(table);
+		const mainTableColumns = this.tableColumns.get(table);
 
 		for (const row of args.result.rows) {
-			this.coerceRow(table, row, cols);
+			if (mainCols) {
+				this.coerceRow(table, row, mainCols);
+			}
+
+			for (const col of Object.keys(row)) {
+				if (mainTableColumns?.has(col)) {
+					continue;
+				}
+
+				for (const [otherTable, otherCols] of this.columns) {
+					if (otherTable === table) {
+						continue;
+					}
+
+					const coercion = otherCols.get(col);
+
+					if (coercion) {
+						this.coerceSingle(otherTable, row, col, coercion);
+						break;
+					}
+				}
+			}
 		}
 
 		return { ...args.result };

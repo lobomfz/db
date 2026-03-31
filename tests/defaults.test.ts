@@ -132,6 +132,56 @@ describe("defaults", () => {
 		expect(event.happened_at.getTime()).toBe(date.getTime());
 	});
 
+	test("date deserialization via scalar subquery", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					users: type({
+						id: generated("autoincrement"),
+						name: "string",
+					}),
+					posts: type({
+						id: generated("autoincrement"),
+						title: "string",
+						user_id: "number",
+						updated_at: "Date",
+					}),
+				},
+			},
+		});
+
+		const date = new Date("2025-06-15T12:00:00Z");
+
+		await db.kysely.insertInto("users").values({ name: "Alice" }).execute();
+
+		await db.kysely
+			.insertInto("posts")
+			.values([
+				{ title: "Old", user_id: 1, updated_at: new Date("2025-01-01T00:00:00Z") },
+				{ title: "New", user_id: 1, updated_at: date },
+			])
+			.execute();
+
+		const user = await db.kysely
+			.selectFrom("users as u")
+			.select((eb) => [
+				"u.id",
+				"u.name",
+				eb
+					.selectFrom("posts as p")
+					.whereRef("p.user_id", "=", "u.id")
+					.select(["p.updated_at"])
+					.orderBy("p.updated_at", "desc")
+					.limit(1)
+					.as("updated_at"),
+			])
+			.executeTakeFirstOrThrow();
+
+		expect(user.updated_at).toBeInstanceOf(Date);
+		expect(user.updated_at!.getTime()).toBe(date.getTime());
+	});
+
 	test("default number value", async () => {
 		const db = new Database({
 			path: ":memory:",

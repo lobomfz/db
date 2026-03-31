@@ -63,6 +63,7 @@ export class Database<T extends SchemaRecord> {
 	private sqlite: BunDatabase;
 
 	private columns: ColumnsMap = new Map();
+	private tableColumns = new Map<string, Set<string>>();
 
 	readonly infer: TablesFromSchemas<T> = undefined as any;
 
@@ -82,7 +83,7 @@ export class Database<T extends SchemaRecord> {
 
 		this.kysely = new Kysely<TablesFromSchemas<T>>({
 			dialect: new BunSqliteDialect({ database: this.sqlite }),
-			plugins: [new DeserializePlugin(this.columns, validation), new ParseJSONResultsPlugin()],
+			plugins: [new DeserializePlugin(this.columns, this.tableColumns, validation), new ParseJSONResultsPlugin()],
 		});
 	}
 
@@ -264,6 +265,8 @@ export class Database<T extends SchemaRecord> {
 	}
 
 	private registerColumns(tableName: string, props: Prop[]) {
+		this.tableColumns.set(tableName, new Set(props.map((p) => p.key)));
+
 		const colMap = new Map<string, ColumnCoercion>();
 
 		for (const prop of props) {
