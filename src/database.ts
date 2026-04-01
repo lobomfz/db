@@ -1,9 +1,14 @@
 import { Database as BunDatabase } from "bun:sqlite";
-import { Kysely, ParseJSONResultsPlugin } from "kysely";
-import { BunSqliteDialect } from "./dialect/dialect";
+
 import type { Type } from "arktype";
-import type { GeneratedPreset } from "./generated";
+import { Kysely, ParseJSONResultsPlugin } from "kysely";
+
+import { BunSqliteDialect } from "./dialect/dialect";
 import type { DbFieldMeta } from "./env";
+import type { GeneratedPreset } from "./generated";
+import { Differ, type DesiredTable } from "./migration/diff";
+import { Executor } from "./migration/execute";
+import { Introspector } from "./migration/introspect";
 import { DeserializePlugin, type ColumnCoercion, type ColumnsMap } from "./plugin";
 import type {
 	DatabaseOptions,
@@ -12,9 +17,6 @@ import type {
 	TablesFromSchemas,
 	DatabasePragmas,
 } from "./types";
-import { Introspector } from "./migration/introspect";
-import { Differ, type DesiredTable } from "./migration/diff";
-import { Executor } from "./migration/execute";
 
 type ArkBranch = {
 	domain?: string;
@@ -43,6 +45,7 @@ type Prop = {
 	isBoolean?: boolean;
 	isInteger?: boolean;
 	isDate?: boolean;
+	isBlob?: boolean;
 	isJson?: boolean;
 	jsonSchema?: Type;
 	meta?: DbFieldMeta;
@@ -83,7 +86,10 @@ export class Database<T extends SchemaRecord> {
 
 		this.kysely = new Kysely<TablesFromSchemas<T>>({
 			dialect: new BunSqliteDialect({ database: this.sqlite }),
-			plugins: [new DeserializePlugin(this.columns, this.tableColumns, validation), new ParseJSONResultsPlugin()],
+			plugins: [
+				new DeserializePlugin(this.columns, this.tableColumns, validation),
+				new ParseJSONResultsPlugin(),
+			],
 		});
 	}
 
@@ -116,6 +122,18 @@ export class Database<T extends SchemaRecord> {
 
 		if (v.proto === Date || nonNull.some((b) => b.proto === Date)) {
 			return { key, kind, nullable, isDate: true, generated, defaultValue };
+		}
+
+		if (v.proto === Uint8Array || nonNull.some((b) => b.proto === Uint8Array)) {
+			return {
+				key,
+				kind,
+				nullable,
+				isBlob: true,
+				meta: v.meta,
+				generated,
+				defaultValue,
+			};
 		}
 
 		if (nonNull.length > 0 && nonNull.every((b) => b.domain === "boolean")) {
@@ -152,6 +170,10 @@ export class Database<T extends SchemaRecord> {
 	private sqlType(prop: Prop) {
 		if (prop.isJson) {
 			return "TEXT";
+		}
+
+		if (prop.isBlob) {
+			return "BLOB";
 		}
 
 		if (prop.isDate || prop.isBoolean || prop.isInteger) {
@@ -328,8 +350,8 @@ export class Database<T extends SchemaRecord> {
 					type: this.sqlType(prop),
 					notnull: isNotNull,
 					defaultValue: defaultClause
-					? defaultClause.replace("DEFAULT ", "").replace(/^\((.+)\)$/, "$1")
-					: null,
+						? defaultClause.replace("DEFAULT ", "").replace(/^\((.+)\)$/, "$1")
+						: null,
 					unique: !!prop.meta?.unique,
 					references: prop.meta?.references ?? null,
 					onDelete: prop.meta?.onDelete?.toUpperCase() ?? null,
@@ -342,7 +364,12 @@ export class Database<T extends SchemaRecord> {
 				sql: this.generateCreateIndexSQL(name, indexDef),
 			}));
 
-			desiredTables.push({ name, sql: this.generateCreateTableSQL(name, props), columns, indexes });
+			desiredTables.push({
+				name,
+				sql: this.generateCreateTableSQL(name, props),
+				columns,
+				indexes,
+			});
 		}
 
 		const existing = new Introspector(this.sqlite).introspect();
