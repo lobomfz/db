@@ -110,6 +110,70 @@ describe("basic", () => {
 		expect(posts).toEqual([]);
 	});
 
+	test("coerces date, boolean and JSON in a single table", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						active: "boolean",
+						created_at: "Date",
+						meta: type({ tags: "string[]" }),
+					}),
+				},
+			},
+		});
+
+		const date = new Date("2025-06-15T12:00:00Z");
+
+		await db.kysely
+			.insertInto("items")
+			.values({ id: 1, active: true, created_at: date, meta: { tags: ["a", "b"] } })
+			.execute();
+
+		const row = await db.kysely
+			.selectFrom("items as i")
+			.selectAll("i")
+			.executeTakeFirstOrThrow();
+
+		expect(row.active).toBe(true);
+		expect(row.created_at).toBeInstanceOf(Date);
+		expect(row.created_at.getTime()).toBe(date.getTime());
+		expect(row.meta).toEqual({ tags: ["a", "b"] });
+	});
+
+	test("select named columns coerces correctly", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						active: "boolean",
+						created_at: "Date",
+						meta: type({ tags: "string[]" }),
+					}),
+				},
+			},
+		});
+
+		const date = new Date("2025-06-15T12:00:00Z");
+
+		await db.kysely
+			.insertInto("items")
+			.values({ id: 1, active: true, created_at: date, meta: { tags: ["x"] } })
+			.execute();
+
+		const row = await db.kysely
+			.selectFrom("items as i")
+			.select(["i.active", "i.created_at"])
+			.executeTakeFirstOrThrow();
+
+		expect(row.active).toBe(true);
+		expect(row.created_at).toBeInstanceOf(Date);
+	});
+
 	test("reset clears single table", async () => {
 		const db = new Database({
 			path: ":memory:",

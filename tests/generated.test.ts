@@ -72,6 +72,47 @@ describe("generated", () => {
 		expect(item?.status).toBe("active");
 	});
 
+	test("bulk insert with optional date and boolean columns", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					events: type({
+						id: generated("autoincrement"),
+						name: "string",
+						"active?": "boolean",
+						"happened_at?": "Date",
+					}),
+				},
+			},
+		});
+
+		const date = new Date("2025-06-15T12:00:00Z");
+
+		await db.kysely
+			.insertInto("events")
+			.values([
+				{ name: "with both", active: true, happened_at: date },
+				{ name: "with boolean", active: false },
+				{ name: "plain" },
+			])
+			.execute();
+
+		const rows = await db.kysely
+			.selectFrom("events as e")
+			.selectAll("e")
+			.orderBy("e.id")
+			.execute();
+
+		expect(rows[0]!.active).toBe(true);
+		expect(rows[0]!.happened_at).toBeInstanceOf(Date);
+		expect(rows[0]!.happened_at!.getTime()).toBe(date.getTime());
+		expect(rows[1]!.active).toBe(false);
+		expect(rows[1]!.happened_at).toBeNull();
+		expect(rows[2]!.active).toBeNull();
+		expect(rows[2]!.happened_at).toBeNull();
+	});
+
 	test("arktype boolean default", async () => {
 		const db = new Database({
 			path: ":memory:",

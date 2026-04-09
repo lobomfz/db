@@ -154,6 +154,12 @@ export class DeserializePlugin implements KyselyPlugin {
 				}
 			}
 
+			for (const update of node.onConflict?.updates ?? []) {
+				if (ColumnNode.is(update.column) && ValueNode.is(update.value)) {
+					yield [update.column.column.name, update.value.value] as [string, unknown];
+				}
+			}
+
 			return;
 		}
 

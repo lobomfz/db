@@ -153,6 +153,99 @@ describe("JSON subqueries", () => {
 		expect(users[2]!.posts).toEqual([]);
 	});
 
+	test("jsonObjectFrom coerces date and boolean in subquery", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					users: type({
+						id: generated("autoincrement"),
+						name: "string",
+						active: "boolean",
+						created_at: "Date",
+					}),
+					posts: type({
+						id: generated("autoincrement"),
+						title: "string",
+						user_id: "number",
+					}),
+				},
+			},
+		});
+
+		const date = new Date("2025-06-15T12:00:00Z");
+
+		await db.kysely.insertInto("users").values({ name: "Alice", active: true, created_at: date }).execute();
+		await db.kysely.insertInto("posts").values({ title: "Post 1", user_id: 1 }).execute();
+
+		const post = await db.kysely
+			.selectFrom("posts as p")
+			.select((eb) => [
+				"p.id",
+				jsonObjectFrom(
+					eb
+						.selectFrom("users as u")
+						.select(["u.name", "u.active", "u.created_at"])
+						.whereRef("u.id", "=", "p.user_id"),
+				).as("author"),
+			])
+			.executeTakeFirstOrThrow();
+
+		expect(post.author!.active).toBe(true);
+		expect(post.author!.created_at).toBeInstanceOf(Date);
+	});
+
+	test("jsonArrayFrom coerces date and boolean in subquery", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					users: type({
+						id: generated("autoincrement"),
+						name: "string",
+					}),
+					tasks: type({
+						id: generated("autoincrement"),
+						user_id: "number",
+						done: "boolean",
+						due_at: "Date",
+					}),
+				},
+			},
+		});
+
+		const date1 = new Date("2025-06-15T12:00:00Z");
+		const date2 = new Date("2025-07-01T00:00:00Z");
+
+		await db.kysely.insertInto("users").values({ name: "Alice" }).execute();
+		await db.kysely
+			.insertInto("tasks")
+			.values([
+				{ user_id: 1, done: true, due_at: date1 },
+				{ user_id: 1, done: false, due_at: date2 },
+			])
+			.execute();
+
+		const user = await db.kysely
+			.selectFrom("users as u")
+			.select((eb) => [
+				"u.name",
+				jsonArrayFrom(
+					eb
+						.selectFrom("tasks as t")
+						.select(["t.done", "t.due_at"])
+						.whereRef("t.user_id", "=", "u.id")
+						.orderBy("t.id"),
+				).as("tasks"),
+			])
+			.executeTakeFirstOrThrow();
+
+		expect(user.tasks[0]!.done).toBe(true);
+		expect(user.tasks[0]!.due_at).toBeInstanceOf(Date);
+		expect(user.tasks[1]!.done).toBe(false);
+		expect(user.tasks[1]!.due_at).toBeInstanceOf(Date);
+	});
+
 	test("parses nested JSON columns inside subquery", async () => {
 		const user = await db.kysely
 			.selectFrom("users")
