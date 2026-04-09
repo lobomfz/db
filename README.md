@@ -5,7 +5,7 @@ SQLite database with Arktype schemas and typed Kysely client for Bun.
 ## Install
 
 ```bash
-bun add @lobomfz/db arktype kysely
+bun add @lobomfz/db
 ```
 
 ## Usage
