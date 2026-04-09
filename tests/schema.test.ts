@@ -1,7 +1,7 @@
 import { afterEach, describe, test, expect } from "bun:test";
 import { unlink } from "node:fs/promises";
 import { type } from "arktype";
-import { sql, Database, generated } from "../src/index.ts";
+import { sql, Database, generated } from "../src/index.js";
 
 const TEST_DB = "./test.db";
 

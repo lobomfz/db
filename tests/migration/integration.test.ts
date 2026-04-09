@@ -4,9 +4,9 @@ import { type } from "arktype";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Introspector } from "../../src/migration/introspect";
-import { Executor } from "../../src/migration/execute";
-import { Database, generated } from "../../src/index.ts";
+import { Introspector } from "../../src/migration/introspect.js";
+import { Executor } from "../../src/migration/execute.js";
+import { Database, generated } from "../../src/index.js";
 
 describe("migration integration", () => {
 	test("creates tables on fresh database", async () => {

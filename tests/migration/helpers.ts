@@ -1,4 +1,4 @@
-import type { DesiredColumn } from "../../src/migration/diff";
+import type { DesiredColumn } from "../../src/migration/diff.js";
 
 export function col(name: string, overrides?: Partial<DesiredColumn>): DesiredColumn {
 	return {

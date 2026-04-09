@@ -1,4 +1,4 @@
-import type { ColumnSchema, IntrospectedTable, ColumnCopy, MigrationOp } from "./types";
+import type { ColumnSchema, IntrospectedTable, ColumnCopy, MigrationOp } from "./types.js";
 
 export interface DesiredColumn extends ColumnSchema {
 	addable: boolean;
@@ -42,7 +42,11 @@ export class Differ {
 			const existingTable = this.existing.get(table.name);
 
 			if (!existingTable) {
-				this.ops.push({ type: "CreateTable", table: table.name, sql: table.sql });
+				this.ops.push({
+					type: "CreateTable",
+					table: table.name,
+					sql: table.sql,
+				});
 				this.rebuiltTables.add(table.name);
 				continue;
 			}
@@ -101,13 +105,21 @@ export class Differ {
 			}
 
 			if (!existing.notnull && col.notnull && col.defaultValue !== null) {
-				columnCopies.push({ name: col.name, expr: `COALESCE("${col.name}", ${col.defaultValue})` });
+				columnCopies.push({
+					name: col.name,
+					expr: `COALESCE("${col.name}", ${col.defaultValue})`,
+				});
 			} else {
 				columnCopies.push({ name: col.name, expr: `"${col.name}"` });
 			}
 		}
 
-		this.ops.push({ type: "RebuildTable", table: table.name, createSql: table.sql, columnCopies });
+		this.ops.push({
+			type: "RebuildTable",
+			table: table.name,
+			createSql: table.sql,
+			columnCopies,
+		});
 		this.rebuiltTables.add(table.name);
 	}
 
@@ -134,7 +146,11 @@ export class Differ {
 		}
 
 		for (const col of newColumns) {
-			this.ops.push({ type: "AddColumn", table: table.name, columnDef: col.columnDef });
+			this.ops.push({
+				type: "AddColumn",
+				table: table.name,
+				columnDef: col.columnDef,
+			});
 		}
 	}
 

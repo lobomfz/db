@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
-import type { MigrationOp, RebuildTableOp } from "./types";
+
+import type { MigrationOp, RebuildTableOp } from "./types.js";
 
 export class Executor {
 	constructor(

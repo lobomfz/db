@@ -20,9 +20,9 @@ import {
 	SelectQueryNode,
 } from "kysely";
 
-import { JsonParseError } from "./errors";
-import type { JsonValidation } from "./types";
-import { JsonValidationError } from "./validation-error";
+import { JsonParseError } from "./errors.js";
+import type { JsonValidation } from "./types.js";
+import { JsonValidationError } from "./validation-error.js";
 
 export type ColumnCoercion = "boolean" | "date" | { type: "json"; schema: Type };
 export type ColumnsMap = Map<string, Map<string, ColumnCoercion>>;

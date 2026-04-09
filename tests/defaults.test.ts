@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import { type } from "arktype";
-import { Database, generated } from "../src/index.ts";
+import { Database, generated } from "../src/index.js";
 
 describe("defaults", () => {
 	test("default string value", async () => {

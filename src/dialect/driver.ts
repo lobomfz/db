@@ -1,8 +1,10 @@
 import type { Database } from "bun:sqlite";
+
 import { CompiledQuery, type DatabaseConnection, type Driver } from "kysely";
-import type { BunSqliteDialectConfig } from "./config";
-import { BunSqliteConnection } from "./connection";
-import { ConnectionMutex } from "./mutex";
+
+import type { BunSqliteDialectConfig } from "./config.js";
+import { BunSqliteConnection } from "./connection.js";
+import { ConnectionMutex } from "./mutex.js";
 
 export class BunSqliteDriver implements Driver {
 	readonly #config: BunSqliteDialectConfig;

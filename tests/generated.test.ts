@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 
 import { type } from "arktype";
 
-import { Database, generated } from "../src/index.ts";
+import { Database, generated } from "../src/index.js";
 
 describe("generated", () => {
 	test("generated autoincrement creates primary key", async () => {
@@ -98,11 +98,7 @@ describe("generated", () => {
 			])
 			.execute();
 
-		const rows = await db.kysely
-			.selectFrom("events as e")
-			.selectAll("e")
-			.orderBy("e.id")
-			.execute();
+		const rows = await db.kysely.selectFrom("events as e").selectAll("e").orderBy("e.id").execute();
 
 		expect(rows[0]!.active).toBe(true);
 		expect(rows[0]!.happened_at).toBeInstanceOf(Date);

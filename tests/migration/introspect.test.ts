@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { Database as BunDatabase } from "bun:sqlite";
-import { Introspector } from "../../src/migration/introspect";
+import { Introspector } from "../../src/migration/introspect.js";
 
 describe("introspect", () => {
 	test("returns empty map for database without tables", () => {

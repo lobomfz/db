@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 
 import { type } from "arktype";
 
-import { Database, generated, JsonParseError, JsonValidationError } from "../src/index.ts";
+import { Database, generated, JsonParseError, JsonValidationError } from "../src/index.js";
 describe("JSON columns", () => {
 	test("inserts and selects nested object", async () => {
 		const db = new Database({

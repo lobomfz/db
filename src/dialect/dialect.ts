@@ -9,8 +9,9 @@ import {
 	type Kysely,
 	type QueryCompiler,
 } from "kysely";
-import type { BunSqliteDialectConfig } from "./config";
-import { BunSqliteDriver } from "./driver";
+
+import type { BunSqliteDialectConfig } from "./config.js";
+import { BunSqliteDriver } from "./driver.js";
 
 export class BunSqliteDialect implements Dialect {
 	readonly #config: BunSqliteDialectConfig;

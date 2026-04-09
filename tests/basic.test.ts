@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { type } from "arktype";
-import { Database } from "../src/index.ts";
+import { Database } from "../src/index.js";
 
 describe("basic", () => {
 	test("creates tables from schemas", async () => {
@@ -132,10 +132,7 @@ describe("basic", () => {
 			.values({ id: 1, active: true, created_at: date, meta: { tags: ["a", "b"] } })
 			.execute();
 
-		const row = await db.kysely
-			.selectFrom("items as i")
-			.selectAll("i")
-			.executeTakeFirstOrThrow();
+		const row = await db.kysely.selectFrom("items as i").selectAll("i").executeTakeFirstOrThrow();
 
 		expect(row.active).toBe(true);
 		expect(row.created_at).toBeInstanceOf(Date);

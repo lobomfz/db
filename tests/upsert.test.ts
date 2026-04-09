@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 
 import { type } from "arktype";
 
-import { Database, generated, JsonValidationError } from "../src/index.ts";
+import { Database, generated, JsonValidationError } from "../src/index.js";
 
 describe("upsert", () => {
 	test("insert path validates JSON and coerces on read", async () => {
@@ -32,10 +32,7 @@ describe("upsert", () => {
 			)
 			.execute();
 
-		const row = await db.kysely
-			.selectFrom("items as i")
-			.selectAll("i")
-			.executeTakeFirstOrThrow();
+		const row = await db.kysely.selectFrom("items as i").selectAll("i").executeTakeFirstOrThrow();
 
 		expect(row.active).toBe(true);
 		expect(row.created_at).toBeInstanceOf(Date);
@@ -72,10 +69,7 @@ describe("upsert", () => {
 			)
 			.execute();
 
-		const row = await db.kysely
-			.selectFrom("items as i")
-			.selectAll("i")
-			.executeTakeFirstOrThrow();
+		const row = await db.kysely.selectFrom("items as i").selectAll("i").executeTakeFirstOrThrow();
 
 		expect(row.active).toBe(true);
 		expect(row.data).toEqual({ value: 99 });
@@ -120,15 +114,16 @@ describe("upsert", () => {
 			},
 		});
 
-		await db.kysely.insertInto("items").values({ id: 1, data: { value: 1 } }).execute();
+		await db.kysely
+			.insertInto("items")
+			.values({ id: 1, data: { value: 1 } })
+			.execute();
 
 		await expect(() =>
 			db.kysely
 				.insertInto("items")
 				.values({ id: 1, data: { value: 2 } })
-				.onConflict((oc) =>
-					oc.column("id").doUpdateSet({ data: { value: "not a number" } } as any),
-				)
+				.onConflict((oc) => oc.column("id").doUpdateSet({ data: { value: "not a number" } } as any))
 				.execute(),
 		).toThrow(JsonValidationError);
 	});
@@ -166,10 +161,7 @@ describe("upsert", () => {
 			)
 			.execute();
 
-		const row = await db.kysely
-			.selectFrom("items as i")
-			.selectAll("i")
-			.executeTakeFirstOrThrow();
+		const row = await db.kysely.selectFrom("items as i").selectAll("i").executeTakeFirstOrThrow();
 
 		expect(row.active).toBe(false);
 		expect(row.created_at).toBeInstanceOf(Date);

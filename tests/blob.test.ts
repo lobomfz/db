@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 
 import { type } from "arktype";
 
-import { sql, Database, generated } from "../src/index.ts";
+import { sql, Database, generated } from "../src/index.js";
 
 describe("blob", () => {
 	test("creates column with BLOB type", async () => {

@@ -1,6 +1,6 @@
-export { Database } from "./database";
-export { generated, type GeneratedPreset } from "./generated";
-export { JsonParseError } from "./errors";
+export { Database } from "./database.js";
+export { generated, type GeneratedPreset } from "./generated.js";
+export { JsonParseError } from "./errors.js";
 export { jsonArrayFrom, jsonObjectFrom } from "kysely/helpers/sqlite";
 export {
 	sql,
@@ -12,8 +12,8 @@ export {
 } from "kysely";
 export { type, type Type } from "arktype";
 export { configure } from "arktype/config";
-export { JsonValidationError } from "./validation-error";
-export type { DbFieldMeta } from "./env";
+export { JsonValidationError } from "./validation-error.js";
+export type { DbFieldMeta } from "./env.js";
 export type {
 	DatabaseOptions,
 	SchemaRecord,
@@ -25,4 +25,4 @@ export type {
 	DatabaseSchema,
 	JsonValidation,
 	SqliteMasterRow,
-} from "./types";
+} from "./types.js";

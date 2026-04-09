@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll } from "bun:test";
 
 import { type } from "arktype";
 
-import { Database, generated } from "../src/index.ts";
+import { Database, generated } from "../src/index.js";
 
 describe("scalar subquery with generated('now')", () => {
 	const db = new Database({

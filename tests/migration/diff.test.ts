@@ -3,9 +3,9 @@ import type {
 	IntrospectedTable,
 	IntrospectedIndex,
 	IntrospectedColumn,
-} from "../../src/migration/types";
-import { Differ, type DesiredTable } from "../../src/migration/diff";
-import { col } from "./helpers";
+} from "../../src/migration/types.js";
+import { Differ, type DesiredTable } from "../../src/migration/diff.js";
+import { col } from "./helpers.js";
 
 function makeExisting(
 	tables: Record<

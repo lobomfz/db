@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { Database as BunDatabase } from "bun:sqlite";
-import { Introspector } from "../../src/migration/introspect";
-import { Executor } from "../../src/migration/execute";
+import { Introspector } from "../../src/migration/introspect.js";
+import { Executor } from "../../src/migration/execute.js";
 
 describe("execute", () => {
 	test("creates tables from CreateTable operations", () => {

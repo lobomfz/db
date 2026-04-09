@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
-import type { IntrospectedColumn, IntrospectedIndex, IntrospectedTable } from "./types";
+
+import type { IntrospectedColumn, IntrospectedIndex, IntrospectedTable } from "./types.js";
 
 type TableListRow = {
 	name: string;

@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll } from "bun:test";
 import { type } from "arktype";
-import { Database, generated } from "../src/index.ts";
+import { Database, generated } from "../src/index.js";
 import { jsonObjectFrom, jsonArrayFrom } from "kysely/helpers/sqlite";
 
 describe("JSON subqueries", () => {
@@ -175,7 +175,10 @@ describe("JSON subqueries", () => {
 
 		const date = new Date("2025-06-15T12:00:00Z");
 
-		await db.kysely.insertInto("users").values({ name: "Alice", active: true, created_at: date }).execute();
+		await db.kysely
+			.insertInto("users")
+			.values({ name: "Alice", active: true, created_at: date })
+			.execute();
 		await db.kysely.insertInto("posts").values({ title: "Post 1", user_id: 1 }).execute();
 
 		const post = await db.kysely

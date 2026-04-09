@@ -1,9 +1,9 @@
 import { describe, test, expect } from "bun:test";
 import { Database as BunDatabase } from "bun:sqlite";
-import { Introspector } from "../../src/migration/introspect";
-import { Differ, type DesiredTable } from "../../src/migration/diff";
-import { Executor } from "../../src/migration/execute";
-import { col } from "./helpers";
+import { Introspector } from "../../src/migration/introspect.js";
+import { Differ, type DesiredTable } from "../../src/migration/diff.js";
+import { Executor } from "../../src/migration/execute.js";
+import { col } from "./helpers.js";
 
 describe("nullable to NOT NULL without default", () => {
 	test("throws when column has NULLs", () => {

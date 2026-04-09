@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { serializeParam } from "../src/dialect/serialize.ts";
+import { serializeParam } from "../src/dialect/serialize.js";
 
 describe("serializeParam", () => {
 	test("Date converts to unix seconds", () => {

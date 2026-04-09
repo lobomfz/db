@@ -1,6 +1,8 @@
 import type { Database } from "bun:sqlite";
+
 import type { CompiledQuery, DatabaseConnection, QueryResult } from "kysely";
-import { serializeParam } from "./serialize";
+
+import { serializeParam } from "./serialize.js";
 
 export class BunSqliteConnection implements DatabaseConnection {
 	readonly #db: Database;
