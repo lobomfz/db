@@ -11,6 +11,8 @@
         "oxlint": "^1.57.0",
       },
       "peerDependencies": {
+        "@ark/schema": ">=0.56.0",
+        "@ark/util": ">=0.56.0",
         "arktype": "^2.1.29",
         "kysely": "^0.28.14",
       },

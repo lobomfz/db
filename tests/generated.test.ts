@@ -1,5 +1,7 @@
 import { describe, test, expect } from "bun:test";
+
 import { type } from "arktype";
+
 import { Database, generated } from "../src/index.ts";
 
 describe("generated", () => {

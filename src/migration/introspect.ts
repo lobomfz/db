@@ -131,7 +131,8 @@ export class Introspector {
 				onDelete: fk?.onDelete ?? null,
 				hasNulls:
 					!isNotnull &&
-					this.db.prepare(`SELECT 1 FROM "${table}" WHERE "${col.name}" IS NULL LIMIT 1`).get() !== null,
+					this.db.prepare(`SELECT 1 FROM "${table}" WHERE "${col.name}" IS NULL LIMIT 1`).get() !==
+						null,
 			});
 		}
 

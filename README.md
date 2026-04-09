@@ -80,20 +80,20 @@ Schema changes are applied automatically on startup. Every time `new Database(..
 
 ### What's supported
 
-| Change | Strategy |
-|---|---|
-| New table | `CREATE TABLE` |
-| Removed table | `DROP TABLE` |
-| New nullable column | `ALTER TABLE ADD COLUMN` |
+| Change                           | Strategy                 |
+| -------------------------------- | ------------------------ |
+| New table                        | `CREATE TABLE`           |
+| Removed table                    | `DROP TABLE`             |
+| New nullable column              | `ALTER TABLE ADD COLUMN` |
 | New NOT NULL column with DEFAULT | `ALTER TABLE ADD COLUMN` |
-| Removed column | Table rebuild |
-| Type change | Table rebuild |
-| Nullability change | Table rebuild |
-| DEFAULT change | Table rebuild |
-| UNIQUE added/removed | Table rebuild |
-| FK added/removed/changed | Table rebuild |
-| Index added | `CREATE INDEX` |
-| Index removed | `DROP INDEX` |
+| Removed column                   | Table rebuild            |
+| Type change                      | Table rebuild            |
+| Nullability change               | Table rebuild            |
+| DEFAULT change                   | Table rebuild            |
+| UNIQUE added/removed             | Table rebuild            |
+| FK added/removed/changed         | Table rebuild            |
+| Index added                      | `CREATE INDEX`           |
+| Index removed                    | `DROP INDEX`             |
 
 Table rebuilds follow SQLite's [recommended procedure](https://www.sqlite.org/lang_altertable.html#otheralter): create a new table with the target schema, copy data from the old table, drop the old table, rename the new one. Foreign keys are disabled during rebuilds and validated via `PRAGMA foreign_key_check` before committing.
 

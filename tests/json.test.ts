@@ -1,5 +1,7 @@
 import { describe, test, expect } from "bun:test";
+
 import { type } from "arktype";
+
 import { Database, generated, JsonParseError, JsonValidationError } from "../src/index.ts";
 describe("JSON columns", () => {
 	test("inserts and selects nested object", async () => {
@@ -192,7 +194,13 @@ describe("JSON columns", () => {
 
 	test("discriminated union JSON column", async () => {
 		const textBlock = type({ type: "'text'", content: "string" });
-		const imageBlock = type({ type: "'image'", url: "string", "alt?": "string" });
+
+		const imageBlock = type({
+			type: "'image'",
+			url: "string",
+			"alt?": "string",
+		});
+
 		const block = textBlock.or(imageBlock);
 
 		const db = new Database({
@@ -214,7 +222,13 @@ describe("JSON columns", () => {
 
 		await db.kysely
 			.insertInto("entries")
-			.values({ block: { type: "image", url: "https://example.com/img.png", alt: "photo" } })
+			.values({
+				block: {
+					type: "image",
+					url: "https://example.com/img.png",
+					alt: "photo",
+				},
+			})
 			.execute();
 
 		const entries = await db.kysely.selectFrom("entries").selectAll().orderBy("id").execute();
@@ -382,6 +396,40 @@ describe("JSON columns", () => {
 				.where("id", "=", 1)
 				.execute(),
 		).toThrow(JsonValidationError);
+	});
+
+	test("bulk insert with JSON column missing on some rows", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: "number",
+						name: "string",
+						"tags?": "string[]",
+						"meta?": type({ views: "number" }),
+					}),
+				},
+			},
+		});
+
+		await db.kysely
+			.insertInto("items")
+			.values([
+				{ id: 1, name: "with tags", tags: ["a", "b"] },
+				{ id: 2, name: "with meta", meta: { views: 10 } },
+				{ id: 3, name: "plain" },
+			])
+			.execute();
+
+		const rows = await db.kysely.selectFrom("items").selectAll().orderBy("id").execute();
+
+		expect(rows[0]!.tags).toEqual(["a", "b"]);
+		expect(rows[0]!.meta).toBeNull();
+		expect(rows[1]!.tags).toBeNull();
+		expect(rows[1]!.meta).toEqual({ views: 10 });
+		expect(rows[2]!.tags).toBeNull();
+		expect(rows[2]!.meta).toBeNull();
 	});
 
 	test("nullable JSON column", async () => {

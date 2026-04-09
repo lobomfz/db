@@ -24,6 +24,7 @@ type ArkBranch = {
 	unit?: unknown;
 	structure?: unknown;
 	inner?: { divisor?: unknown };
+	meta?: DbFieldMeta & { _generated?: GeneratedPreset };
 };
 
 type StructureProp = {
@@ -114,46 +115,49 @@ export class Database<T extends SchemaRecord> {
 	private normalizeProp(structureProp: StructureProp, parentSchema: Type) {
 		const { key, value: v, inner } = structureProp;
 		const kind: Prop["kind"] = structureProp.required ? "required" : "optional";
-		const generated = v.meta._generated;
 		const defaultValue = inner.default;
 
-		const nonNull = v.branches.filter((b) => b.unit !== null);
-		const nullable = nonNull.length < v.branches.length;
+		const concrete = v.branches.filter((b) => b.unit !== null && b.domain !== "undefined");
+		const nullable = concrete.length < v.branches.length;
 
-		if (v.proto === Date || nonNull.some((b) => b.proto === Date)) {
+		const branchMeta = v.branches.find((b) => b.meta && Object.keys(b.meta).length > 0)?.meta;
+		const meta = { ...branchMeta, ...v.meta };
+		const generated = meta._generated;
+
+		if (v.proto === Date || concrete.some((b) => b.proto === Date)) {
 			return { key, kind, nullable, isDate: true, generated, defaultValue };
 		}
 
-		if (v.proto === Uint8Array || nonNull.some((b) => b.proto === Uint8Array)) {
+		if (v.proto === Uint8Array || concrete.some((b) => b.proto === Uint8Array)) {
 			return {
 				key,
 				kind,
 				nullable,
 				isBlob: true,
-				meta: v.meta,
+				meta,
 				generated,
 				defaultValue,
 			};
 		}
 
-		if (nonNull.length > 0 && nonNull.every((b) => b.domain === "boolean")) {
+		if (concrete.length > 0 && concrete.every((b) => b.domain === "boolean")) {
 			return { key, kind, nullable, isBoolean: true, generated, defaultValue };
 		}
 
-		if (nonNull.some((b) => !!b.structure)) {
+		if (concrete.some((b) => !!b.structure)) {
 			return {
 				key,
 				kind,
 				nullable,
 				isJson: true,
 				jsonSchema: (parentSchema as any).get(key) as Type,
-				meta: v.meta,
+				meta,
 				generated,
 				defaultValue,
 			};
 		}
 
-		const branch = nonNull[0];
+		const branch = concrete[0];
 
 		return {
 			key,
@@ -161,7 +165,7 @@ export class Database<T extends SchemaRecord> {
 			nullable,
 			domain: branch?.domain,
 			isInteger: !!branch?.inner?.divisor,
-			meta: v.meta,
+			meta,
 			generated,
 			defaultValue,
 		};
@@ -224,7 +228,9 @@ export class Database<T extends SchemaRecord> {
 			return `DEFAULT ${prop.defaultValue}`;
 		}
 
-		throw new Error(`Unsupported default value type: ${typeof prop.defaultValue}`);
+		throw new Error(
+			`Unsupported default value type: ${typeof prop.defaultValue} ${JSON.stringify(prop)}`,
+		);
 	}
 
 	private columnDef(prop: Prop) {

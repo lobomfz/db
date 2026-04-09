@@ -3,6 +3,7 @@ export type DbFieldMeta = {
 	unique?: boolean;
 	references?: `${string}.${string}`;
 	onDelete?: "cascade" | "set null" | "restrict";
+	_generated?: "autoincrement" | "now";
 };
 
 declare global {

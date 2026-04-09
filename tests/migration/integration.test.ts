@@ -157,7 +157,9 @@ describe("migration integration", () => {
 						},
 					},
 				}),
-		).toThrow('Cannot create unique index on table "items" ("external_id"): duplicate values exist');
+		).toThrow(
+			'Cannot create unique index on table "items" ("external_id"): duplicate values exist',
+		);
 	});
 
 	test("composite index is created correctly", () => {

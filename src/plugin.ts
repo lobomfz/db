@@ -12,6 +12,7 @@ import {
 	ValuesNode,
 	ValueNode,
 	ColumnNode,
+	DefaultInsertValueNode,
 	IdentifierNode,
 	ReferenceNode,
 	ParensNode,
@@ -144,7 +145,12 @@ export class DeserializePlugin implements KyselyPlugin {
 					}
 
 					const raw = valueList.values[i];
-					yield [col, raw && ValueNode.is(raw) ? raw.value : raw] as [string, unknown];
+
+					if (!raw || DefaultInsertValueNode.is(raw)) {
+						continue;
+					}
+
+					yield [col, ValueNode.is(raw) ? raw.value : raw] as [string, unknown];
 				}
 			}
 
@@ -301,7 +307,10 @@ export class DeserializePlugin implements KyselyPlugin {
 		return match;
 	}
 
-	private resolveSelectionCoercion(node: OperationNode, scope: Map<string, string>): ResolvedCoercion | null {
+	private resolveSelectionCoercion(
+		node: OperationNode,
+		scope: Map<string, string>,
+	): ResolvedCoercion | null {
 		if (AliasNode.is(node)) {
 			return this.resolveSelectionCoercion(node.node, scope);
 		}
@@ -341,10 +350,7 @@ export class DeserializePlugin implements KyselyPlugin {
 			return null;
 		}
 
-		return this.resolveSelectionCoercion(
-			node.selections[0]!.selection,
-			this.getTableScope(node),
-		);
+		return this.resolveSelectionCoercion(node.selections[0]!.selection, this.getTableScope(node));
 	}
 
 	private getSelectionOutputName(node: OperationNode) {

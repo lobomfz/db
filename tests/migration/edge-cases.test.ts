@@ -10,7 +10,7 @@ describe("nullable to NOT NULL without default", () => {
 		const db = new BunDatabase(":memory:");
 		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "bio" TEXT)');
 		db.run("INSERT INTO \"users\" VALUES (1, 'has bio')");
-		db.run("INSERT INTO \"users\" VALUES (2, NULL)");
+		db.run('INSERT INTO "users" VALUES (2, NULL)');
 
 		const desired: DesiredTable[] = [
 			{

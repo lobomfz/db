@@ -74,15 +74,12 @@ describe("JSON subqueries", () => {
 	test("jsonObjectFrom returns null when no match", async () => {
 		const post = await db.kysely
 			.selectFrom("posts")
-			.select((eb) => [
-				"posts.id",
+			.select(["posts.id"])
+			.select((eb) =>
 				jsonObjectFrom(
-					eb
-						.selectFrom("users")
-						.select(["users.id", "users.name"])
-						.where("users.id", "=", 9999),
+					eb.selectFrom("users").select(["users.id", "users.name"]).where("users.id", "=", 9999),
 				).as("author"),
-			])
+			)
 			.where("posts.id", "=", 1)
 			.executeTakeFirstOrThrow();
 

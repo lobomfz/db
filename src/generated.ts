@@ -3,13 +3,10 @@ import { type } from "arktype";
 export type GeneratedPreset = "autoincrement" | "now";
 
 const generatedTypes = {
-	autoincrement: () =>
-		type("number.integer")
-			.configure({ _generated: "autoincrement" } as any)
-			.default(0),
+	autoincrement: () => type("number.integer").configure({ _generated: "autoincrement" }).default(0),
 	now: () =>
 		type("Date")
-			.configure({ _generated: "now" } as any)
+			.configure({ _generated: "now" })
 			.default(() => new Date(0)),
 };
 

@@ -302,7 +302,12 @@ describe("execute", () => {
 		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "name" TEXT)');
 
 		new Executor(db, [
-			{ type: "CreateIndex", table: "users", columns: ["name"], sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")' },
+			{
+				type: "CreateIndex",
+				table: "users",
+				columns: ["name"],
+				sql: 'CREATE INDEX "ix_users_name" ON "users" ("name")',
+			},
 		]).execute();
 
 		expect(new Introspector(db).introspect().get("users")!.indexes).toHaveLength(1);
@@ -323,7 +328,12 @@ describe("execute", () => {
 		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "email" TEXT)');
 
 		new Executor(db, [
-			{ type: "CreateIndex", table: "users", columns: ["email"], sql: 'CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email")' },
+			{
+				type: "CreateIndex",
+				table: "users",
+				columns: ["email"],
+				sql: 'CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email")',
+			},
 		]).execute();
 
 		db.run("INSERT INTO \"users\" VALUES (1, 'a@b.com')");
@@ -338,7 +348,7 @@ describe("execute", () => {
 		db.run(
 			'CREATE TABLE "posts" ("id" INTEGER PRIMARY KEY, "user_id" INTEGER, "title" TEXT, FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE)',
 		);
-		db.run("INSERT INTO \"users\" VALUES (1)");
+		db.run('INSERT INTO "users" VALUES (1)');
 		db.run("INSERT INTO \"posts\" VALUES (1, 1, 'Title')");
 
 		new Executor(db, [
@@ -354,8 +364,8 @@ describe("execute", () => {
 			},
 		]).execute();
 
-		db.run("INSERT INTO \"posts\" VALUES (2, 1)");
-		expect(() => db.run("INSERT INTO \"posts\" VALUES (3, 999)")).toThrow();
+		db.run('INSERT INTO "posts" VALUES (2, 1)');
+		expect(() => db.run('INSERT INTO "posts" VALUES (3, 999)')).toThrow();
 
 		db.run('DELETE FROM "users" WHERE id = 1');
 		const posts = db.prepare('SELECT * FROM "posts"').all();
@@ -368,7 +378,7 @@ describe("execute", () => {
 		db.run("PRAGMA foreign_keys = ON");
 		db.run('CREATE TABLE "users" ("id" INTEGER PRIMARY KEY)');
 		db.run('CREATE TABLE "posts" ("id" INTEGER PRIMARY KEY, "title" TEXT)');
-		db.run("INSERT INTO \"users\" VALUES (1)");
+		db.run('INSERT INTO "users" VALUES (1)');
 
 		new Executor(db, [
 			{
@@ -379,7 +389,9 @@ describe("execute", () => {
 		]).execute();
 
 		db.run("INSERT INTO \"posts\" (id, title, user_id) VALUES (1, 'Post', 1)");
-		expect(() => db.run("INSERT INTO \"posts\" (id, title, user_id) VALUES (2, 'Bad', 999)")).toThrow();
+		expect(() =>
+			db.run("INSERT INTO \"posts\" (id, title, user_id) VALUES (2, 'Bad', 999)"),
+		).toThrow();
 
 		db.run('DELETE FROM "users" WHERE id = 1');
 		const posts = db.prepare('SELECT * FROM "posts"').all();
@@ -397,7 +409,7 @@ describe("execute", () => {
 		db.run("INSERT INTO \"users\" VALUES (1, 'Alice', 'Bio')");
 
 		db.run("PRAGMA foreign_keys = OFF");
-		db.run("INSERT INTO \"posts\" VALUES (1, 999)");
+		db.run('INSERT INTO "posts" VALUES (1, 999)');
 		db.run("PRAGMA foreign_keys = ON");
 
 		expect(() => {
