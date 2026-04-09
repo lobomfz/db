@@ -18,10 +18,10 @@ import {
 } from "kysely";
 
 import { JsonParseError } from "./errors.js";
-import { JsonValidationError } from "./validation-error.js";
+import type { StructureProp } from "./types.js";
+import { ValidationError } from "./validation-error.js";
 
-export type ColumnCoercion = "boolean" | "date" | { type: "json"; schema: Type };
-export type ColumnsMap = Map<string, Map<string, ColumnCoercion>>;
+type ColumnCoercion = "boolean" | "date" | { type: "json"; schema: Type };
 
 type ResolvedCoercion = { table: string; coercion: ColumnCoercion };
 
@@ -79,13 +79,70 @@ const jsonObjectFromFragments = [
 const typePreservingAggregateFunctions = new Set(["max", "min"]);
 
 export class ResultHydrationPlugin implements KyselyPlugin {
+	private columns = new Map<string, Map<string, ColumnCoercion>>();
+	private tableColumns = new Map<string, Set<string>>();
 	private queryPlans = new WeakMap<QueryId, QueryPlan>();
 
 	constructor(
-		private columns: ColumnsMap,
-		private tableColumns: Map<string, Set<string>>,
+		schemas: Map<string, Type>,
 		private validation: { onRead: boolean },
-	) {}
+	) {
+		this.registerSchemas(schemas);
+	}
+
+	private registerSchemas(schemas: Map<string, Type>) {
+		for (const [table, schema] of schemas) {
+			const structureProps = (schema as any).structure?.props as StructureProp[] | undefined;
+
+			if (!structureProps) {
+				continue;
+			}
+
+			this.tableColumns.set(
+				table,
+				new Set(structureProps.map((prop) => prop.key)),
+			);
+
+			const columns = new Map<string, ColumnCoercion>();
+
+			for (const prop of structureProps) {
+				const coercion = this.getColumnCoercion(prop, schema);
+
+				if (!coercion) {
+					continue;
+				}
+
+				columns.set(prop.key, coercion);
+			}
+
+			if (columns.size > 0) {
+				this.columns.set(table, columns);
+			}
+		}
+	}
+
+	private getColumnCoercion(prop: StructureProp, parentSchema: Type) {
+		const concrete = prop.value.branches.filter(
+			(branch) => branch.unit !== null && branch.domain !== "undefined",
+		);
+
+		if (prop.value.proto === Date || concrete.some((branch) => branch.proto === Date)) {
+			return "date" satisfies ColumnCoercion;
+		}
+
+		if (concrete.length > 0 && concrete.every((branch) => branch.domain === "boolean")) {
+			return "boolean" satisfies ColumnCoercion;
+		}
+
+		if (concrete.some((branch) => !!branch.structure)) {
+			return {
+				type: "json",
+				schema: (parentSchema as any).get(prop.key) as Type,
+			} satisfies ColumnCoercion;
+		}
+
+		return null;
+	}
 
 	transformQuery: KyselyPlugin["transformQuery"] = (args) => {
 		this.queryPlans.set(args.queryId, {
@@ -141,7 +198,7 @@ export class ResultHydrationPlugin implements KyselyPlugin {
 		const result = schema(value);
 
 		if (result instanceof type.errors) {
-			throw new JsonValidationError(table, col, result.summary);
+			throw new ValidationError(table, result.summary, col);
 		}
 	}
 

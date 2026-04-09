@@ -11,7 +11,7 @@ Imports
 
 Everything that interacts with the library is imported from @lobomfz/db. Never import from arktype, kysely, or kysely/helpers directly when the symbol is available from the lib.
 
-Available exports: Database, generated, type, Type, configure, sql, Selectable, Insertable, Updateable, Kysely, ExpressionBuilder, jsonArrayFrom, jsonObjectFrom, JsonParseError, JsonValidationError.
+Available exports: Database, generated, type, Type, configure, sql, Selectable, Insertable, Updateable, Kysely, ExpressionBuilder, jsonArrayFrom, jsonObjectFrom, JsonParseError, ValidationError.
 
 Field types
 
@@ -144,9 +144,8 @@ JSON validation
 
 Controlled by the validation option in the constructor:
 
-validation: { onWrite: true, onRead: false }
+validation: { onRead: false }
 
-onWrite (default true): validates JSON fields against their ArkType schema before insert/update.
 onRead (default false): validates JSON fields after reading from the database.
 
 Testing

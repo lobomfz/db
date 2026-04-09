@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 
 import { type } from "arktype";
 
-import { Database, JsonValidationError } from "../src/index.js";
+import { Database, ValidationError } from "../src/index.js";
 
 describe("upsert", () => {
 	test("insert path validates JSON and coerces on read", async () => {
@@ -98,7 +98,7 @@ describe("upsert", () => {
 					}),
 				)
 				.execute(),
-		).toThrow(JsonValidationError);
+		).toThrow(ValidationError);
 	});
 
 	test("rejects invalid JSON in doUpdateSet literal values", async () => {
@@ -125,7 +125,7 @@ describe("upsert", () => {
 				.values({ id: 1, data: { value: 2 } })
 				.onConflict((oc) => oc.column("id").doUpdateSet({ data: { value: "not a number" } } as any))
 				.execute(),
-		).toThrow(JsonValidationError);
+		).toThrow(ValidationError);
 	});
 
 	test("roundtrip with date, boolean and JSON through conflict", async () => {

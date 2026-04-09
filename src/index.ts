@@ -12,7 +12,7 @@ export {
 } from "kysely";
 export { type, type Type } from "arktype";
 export { configure } from "arktype/config";
-export { JsonValidationError } from "./validation-error.js";
+export { ValidationError } from "./validation-error.js";
 export type { DbFieldMeta } from "./env.js";
 export type {
 	DatabaseOptions,

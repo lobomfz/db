@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { type } from "arktype";
-import { Database, generated } from "../src/index.js";
+import { Database, generated, sql, ValidationError } from "../src/index.js";
 
 describe("constraints", () => {
 	test("required fields are NOT NULL", async () => {
@@ -21,7 +21,74 @@ describe("constraints", () => {
 				.insertInto("items")
 				.values({ id: 1, name: null as any })
 				.execute(),
-		).toThrow();
+		).toThrow(ValidationError);
+	});
+
+	test("write morph validates scalar fields on insert", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						name: "string",
+					}),
+				},
+			},
+		});
+
+		await expect(() =>
+			db.kysely
+				.insertInto("items")
+				.values({ id: 1, name: 123 as any })
+				.execute(),
+		).toThrow(ValidationError);
+	});
+
+	test("write morph validates literal columns when another column uses sql", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: generated("autoincrement"),
+						name: "string",
+						slug: "string",
+					}),
+				},
+			},
+		});
+
+		await expect(() =>
+			db.kysely
+				.insertInto("items")
+				.values({ name: sql<string>`upper(${"valid"})`, slug: 123 as any })
+				.execute(),
+		).toThrow(ValidationError);
+	});
+
+	test("write morph validates scalar fields on update", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					items: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						name: "string",
+					}),
+				},
+			},
+		});
+
+		await db.kysely.insertInto("items").values({ id: 1, name: "valid" }).execute();
+
+		await expect(() =>
+			db.kysely
+				.updateTable("items")
+				.set({ name: 123 as any })
+				.where("id", "=", 1)
+				.execute(),
+		).toThrow(ValidationError);
 	});
 
 	test("optional fields are nullable", async () => {

@@ -1,6 +1,23 @@
 import type { Generated } from "kysely";
 import type { Type } from "arktype";
 
+export type ArkBranch = {
+	domain?: string;
+	proto?: unknown;
+	unit?: unknown;
+	structure?: unknown;
+};
+
+export type StructureProp = {
+	key: string;
+	required: boolean;
+	inner: { default?: unknown };
+	value: Type & {
+		branches: ArkBranch[];
+		proto?: unknown;
+	};
+};
+
 type ExtractInput<T> = T extends { inferIn: infer I } ? I : never;
 type ExtractOutput<T> = T extends { infer: infer O } ? O : never;
 
@@ -60,7 +77,6 @@ export type DatabaseSchema<T extends SchemaRecord> = {
 
 export type JsonValidation = {
 	onRead?: boolean;
-	onWrite?: boolean;
 };
 
 export type DatabaseOptions<T extends SchemaRecord> = {

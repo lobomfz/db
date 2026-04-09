@@ -7,7 +7,7 @@ const generatedTypes = {
 	now: () =>
 		type("Date")
 			.configure({ _generated: "now" })
-			.default(() => new Date(0)),
+			.default(() => new Date()),
 };
 
 export function generated<P extends GeneratedPreset>(

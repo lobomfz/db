@@ -1,11 +1,15 @@
-export class JsonValidationError extends Error {
+export class ValidationError extends Error {
 	constructor(
 		readonly table: string,
-		readonly column: string,
 		readonly summary: string,
+		readonly column: string | null = null,
 	) {
-		super(`JSON validation failed for ${table}.${column}: ${summary}`);
+		super(
+			column
+				? `Validation failed for ${table}.${column}: ${summary}`
+				: `Validation failed for ${table}: ${summary}`,
+		);
 
-		this.name = "JsonValidationError";
+		this.name = "ValidationError";
 	}
 }

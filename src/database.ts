@@ -9,7 +9,7 @@ import type { GeneratedPreset } from "./generated.js";
 import { Differ, type DesiredTable } from "./migration/diff.js";
 import { Executor } from "./migration/execute.js";
 import { Introspector } from "./migration/introspect.js";
-import { ResultHydrationPlugin, type ColumnCoercion, type ColumnsMap } from "./plugin.js";
+import { ResultHydrationPlugin } from "./plugin.js";
 import type {
 	DatabaseOptions,
 	IndexDefinition,
@@ -67,14 +67,19 @@ const defaultPragmas: DatabasePragmas = {
 export class Database<T extends SchemaRecord> {
 	private sqlite: BunDatabase;
 
-	private columns: ColumnsMap = new Map();
-	private tableColumns = new Map<string, Set<string>>();
-
 	readonly infer: TablesFromSchemas<T> = undefined as any;
 
 	readonly kysely: Kysely<TablesFromSchemas<T>>;
 
 	constructor(private options: DatabaseOptions<T>) {
+		const tableSchemas = new Map<string, Type>(Object.entries(options.schema.tables));
+		const writeSchemas = new Map<string, Type>(
+			Object.entries(options.schema.tables).map(([table, schema]) => [
+				table,
+				this.createWriteSchema(schema),
+			]),
+		);
+
 		this.sqlite = new BunDatabase(options.path);
 
 		this.applyPragmas();
@@ -83,14 +88,13 @@ export class Database<T extends SchemaRecord> {
 
 		const validation = {
 			onRead: options.validation?.onRead ?? false,
-			onWrite: options.validation?.onWrite ?? true,
 		};
 
 		this.kysely = new Kysely<TablesFromSchemas<T>>({
 			dialect: new BunSqliteDialect({ database: this.sqlite }),
 			plugins: [
-				new WriteValidationPlugin(this.columns, validation),
-				new ResultHydrationPlugin(this.columns, this.tableColumns, validation),
+				new WriteValidationPlugin(writeSchemas),
+				new ResultHydrationPlugin(tableSchemas, validation),
 			],
 		});
 	}
@@ -293,30 +297,16 @@ export class Database<T extends SchemaRecord> {
 		return structureProps.map((p) => this.normalizeProp(p, schema));
 	}
 
-	private registerColumns(tableName: string, props: Prop[]) {
-		this.tableColumns.set(tableName, new Set(props.map((p) => p.key)));
+	private createWriteSchema(schema: Type) {
+		const autoIncrementColumns = this.parseSchemaProps(schema)
+			.filter((prop) => prop.generated === "autoincrement")
+			.map((prop) => prop.key);
 
-		const colMap = new Map<string, ColumnCoercion>();
-
-		for (const prop of props) {
-			if (prop.isBoolean) {
-				colMap.set(prop.key, "boolean");
-				continue;
-			}
-
-			if (prop.isDate) {
-				colMap.set(prop.key, "date");
-				continue;
-			}
-
-			if (prop.isJson && prop.jsonSchema) {
-				colMap.set(prop.key, { type: "json", schema: prop.jsonSchema });
-			}
+		if (autoIncrementColumns.length === 0) {
+			return schema;
 		}
 
-		if (colMap.size > 0) {
-			this.columns.set(tableName, colMap);
-		}
+		return (schema as any).omit(...autoIncrementColumns) as Type;
 	}
 
 	private generateCreateTableSQL(tableName: string, props: Prop[]) {
@@ -342,8 +332,6 @@ export class Database<T extends SchemaRecord> {
 
 		for (const [name, schema] of Object.entries(this.options.schema.tables)) {
 			const props = this.parseSchemaProps(schema);
-
-			this.registerColumns(name, props);
 
 			const columns = props.map((prop) => {
 				const isNotNull = this.columnConstraint(prop) === "NOT NULL";

@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 
 import { type } from "arktype";
 
-import { Database, generated, JsonParseError, JsonValidationError } from "../src/index.js";
+import { Database, generated, JsonParseError, ValidationError } from "../src/index.js";
 describe("JSON columns", () => {
 	test("inserts and selects nested object", async () => {
 		const db = new Database({
@@ -106,7 +106,7 @@ describe("JSON columns", () => {
 		expect((error as JsonParseError).cause).toBeInstanceOf(SyntaxError);
 	});
 
-	test("throws JsonValidationError for invalid data on read", async () => {
+	test("throws ValidationError for invalid data on read", async () => {
 		const db = new Database({
 			path: ":memory:",
 			schema: {
@@ -131,10 +131,10 @@ describe("JSON columns", () => {
 			.execute()
 			.catch((e: unknown) => e);
 
-		expect(error).toBeInstanceOf(JsonValidationError);
-		expect((error as JsonValidationError).table).toBe("items");
-		expect((error as JsonValidationError).column).toBe("data");
-		expect((error as JsonValidationError).summary).toContain("count");
+		expect(error).toBeInstanceOf(ValidationError);
+		expect((error as ValidationError).table).toBe("items");
+		expect((error as ValidationError).column).toBe("data");
+		expect((error as ValidationError).summary).toContain("count");
 	});
 
 	test("optional JSON column", async () => {
@@ -264,7 +264,7 @@ describe("JSON columns", () => {
 		sqlite.run("INSERT INTO entries (block) VALUES (?)", ['{"type":"video","src":"x"}']);
 
 		await expect(() => db.kysely.selectFrom("entries").selectAll().execute()).toThrow(
-			JsonValidationError,
+			ValidationError,
 		);
 	});
 
@@ -368,7 +368,7 @@ describe("JSON columns", () => {
 				.insertInto("items")
 				.values({ data: { value: "not a number" } } as any)
 				.execute(),
-		).toThrow(JsonValidationError);
+		).toThrow(ValidationError);
 	});
 
 	test("validates JSON on update", async () => {
@@ -395,7 +395,7 @@ describe("JSON columns", () => {
 				.set({ data: { value: "bad" } } as any)
 				.where("id", "=", 1)
 				.execute(),
-		).toThrow(JsonValidationError);
+		).toThrow(ValidationError);
 	});
 
 	test("bulk insert with JSON column missing on some rows", async () => {

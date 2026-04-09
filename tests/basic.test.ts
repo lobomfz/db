@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { type } from "arktype";
-import { Database } from "../src/index.js";
+import { Database, generated } from "../src/index.js";
 
 describe("basic", () => {
 	test("creates tables from schemas", async () => {
@@ -49,6 +49,68 @@ describe("basic", () => {
 			.executeTakeFirst();
 
 		expect(user).toEqual({ id: 1, name: "John", bio: null });
+	});
+
+	test("optional non-null field strips null on insert", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					users: type({
+						id: type("number.integer").configure({ primaryKey: true }),
+						name: "string",
+						"bio?": "string",
+					}),
+				},
+			},
+		});
+
+		await db.kysely
+			.insertInto("users")
+			.values({ id: 1, name: "John", bio: null as any })
+			.execute();
+
+		const user = await db.kysely
+			.selectFrom("users")
+			.where("id", "=", 1)
+			.selectAll()
+			.executeTakeFirstOrThrow();
+
+		expect(user.bio).toBeNull();
+	});
+
+	test("optional field can be updated to null", async () => {
+		const db = new Database({
+			path: ":memory:",
+			schema: {
+				tables: {
+					users: type({
+						id: generated("autoincrement"),
+						"name?": "string",
+					}),
+				},
+			},
+		});
+
+		const user = await db.kysely
+			.insertInto("users")
+			.values({ id: 123 as any, name: "John" })
+			.returningAll()
+			.executeTakeFirstOrThrow();
+
+		await db.kysely
+			.updateTable("users")
+			.set({ name: null as any })
+			.where("id", "=", user.id)
+			.execute();
+
+		const updatedUser = await db.kysely
+			.selectFrom("users")
+			.where("id", "=", user.id)
+			.selectAll()
+			.executeTakeFirstOrThrow();
+
+		expect(updatedUser.name).toBeNull();
 	});
 
 	test("reset clears all tables", async () => {

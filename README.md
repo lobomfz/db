@@ -65,12 +65,12 @@ type("string").configure({ unique: true }); // UNIQUE
 type("number.integer").configure({ references: "users.id", onDelete: "cascade" }); // FK
 ```
 
-JSON columns are validated against the schema on write by default. To also validate on read, or to disable write validation:
+JSON columns are validated against the schema on write by default. To also validate on read:
 
 ```typescript
 new Database({
 	// ...
-	validation: { onRead: true }, // default: { onRead: false, onWrite: true }
+	validation: { onRead: true }, // default: { onRead: false }
 });
 ```
 
