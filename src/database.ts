@@ -1,7 +1,7 @@
 import { Database as BunDatabase } from "bun:sqlite";
 
 import type { Type } from "arktype";
-import { Kysely, ParseJSONResultsPlugin } from "kysely";
+import { Kysely } from "kysely";
 
 import { BunSqliteDialect } from "./dialect/dialect.js";
 import type { DbFieldMeta } from "./env.js";
@@ -9,7 +9,7 @@ import type { GeneratedPreset } from "./generated.js";
 import { Differ, type DesiredTable } from "./migration/diff.js";
 import { Executor } from "./migration/execute.js";
 import { Introspector } from "./migration/introspect.js";
-import { DeserializePlugin, type ColumnCoercion, type ColumnsMap } from "./plugin.js";
+import { ResultHydrationPlugin, type ColumnCoercion, type ColumnsMap } from "./plugin.js";
 import type {
 	DatabaseOptions,
 	IndexDefinition,
@@ -17,6 +17,7 @@ import type {
 	TablesFromSchemas,
 	DatabasePragmas,
 } from "./types.js";
+import { WriteValidationPlugin } from "./write-validation-plugin.js";
 
 type ArkBranch = {
 	domain?: string;
@@ -88,8 +89,8 @@ export class Database<T extends SchemaRecord> {
 		this.kysely = new Kysely<TablesFromSchemas<T>>({
 			dialect: new BunSqliteDialect({ database: this.sqlite }),
 			plugins: [
-				new DeserializePlugin(this.columns, this.tableColumns, validation),
-				new ParseJSONResultsPlugin(),
+				new WriteValidationPlugin(this.columns, validation),
+				new ResultHydrationPlugin(this.columns, this.tableColumns, validation),
 			],
 		});
 	}

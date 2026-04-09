@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 
 import { type } from "arktype";
 
-import { Database, generated, JsonValidationError } from "../src/index.js";
+import { Database, JsonValidationError } from "../src/index.js";
 
 describe("upsert", () => {
 	test("insert path validates JSON and coerces on read", async () => {

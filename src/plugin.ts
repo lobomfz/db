@@ -3,25 +3,21 @@ import type { Type } from "arktype";
 import {
 	type KyselyPlugin,
 	type OperationNode,
+	type QueryId,
 	type RootOperationNode,
 	type UnknownRow,
-	type QueryId,
 	AggregateFunctionNode,
-	TableNode,
 	AliasNode,
-	ValuesNode,
-	ValueNode,
-	ColumnNode,
-	DefaultInsertValueNode,
-	IdentifierNode,
-	ReferenceNode,
-	ParensNode,
 	CastNode,
+	ColumnNode,
+	IdentifierNode,
+	ParensNode,
+	ReferenceNode,
 	SelectQueryNode,
+	TableNode,
 } from "kysely";
 
 import { JsonParseError } from "./errors.js";
-import type { JsonValidation } from "./types.js";
 import { JsonValidationError } from "./validation-error.js";
 
 export type ColumnCoercion = "boolean" | "date" | { type: "json"; schema: Type };
@@ -29,23 +25,73 @@ export type ColumnsMap = Map<string, Map<string, ColumnCoercion>>;
 
 type ResolvedCoercion = { table: string; coercion: ColumnCoercion };
 
+type CoercionPlan = {
+	kind: "coercion";
+	table: string;
+	column: string;
+	coercion: ColumnCoercion;
+};
+
+type ObjectPlan = {
+	kind: "object";
+	table: string;
+	column: string;
+	fields: Map<string, ValuePlan>;
+};
+
+type ArrayPlan = {
+	kind: "array";
+	table: string;
+	column: string;
+	fields: Map<string, ValuePlan>;
+};
+
+type ValuePlan = CoercionPlan | ObjectPlan | ArrayPlan;
+
+type QueryPlan = {
+	table: string | null;
+	selectionPlans: Map<string, ValuePlan>;
+};
+
+type JsonHelper = {
+	kind: "object" | "array";
+	query: SelectQueryNode;
+};
+
+type RawOperationNode = OperationNode & {
+	kind: "RawNode";
+	sqlFragments: readonly string[];
+	parameters: readonly OperationNode[];
+};
+
+const jsonArrayFromFragments = [
+	"(select coalesce(json_group_array(json_object(",
+	")), '[]') from ",
+	" as agg)",
+] as const;
+
+const jsonObjectFromFragments = [
+	"(select json_object(",
+	") from ",
+	" as obj)",
+] as const;
+
 const typePreservingAggregateFunctions = new Set(["max", "min"]);
 
-export class DeserializePlugin implements KyselyPlugin {
-	private queryNodes = new WeakMap<QueryId, RootOperationNode>();
+export class ResultHydrationPlugin implements KyselyPlugin {
+	private queryPlans = new WeakMap<QueryId, QueryPlan>();
 
 	constructor(
 		private columns: ColumnsMap,
 		private tableColumns: Map<string, Set<string>>,
-		private validation: Required<JsonValidation>,
+		private validation: { onRead: boolean },
 	) {}
 
 	transformQuery: KyselyPlugin["transformQuery"] = (args) => {
-		this.queryNodes.set(args.queryId, args.node);
-
-		if (this.validation.onWrite) {
-			this.validateWriteNode(args.node);
-		}
+		this.queryPlans.set(args.queryId, {
+			table: this.getTableFromNode(args.node),
+			selectionPlans: this.getSelectionPlans(args.node),
+		});
 
 		return args.node;
 	};
@@ -99,127 +145,115 @@ export class DeserializePlugin implements KyselyPlugin {
 		}
 	}
 
-	private validateWriteNode(node: RootOperationNode) {
-		if (node.kind !== "InsertQueryNode" && node.kind !== "UpdateQueryNode") {
-			return;
-		}
-
-		const table = this.getTableFromNode(node);
-
-		if (!table) {
-			return;
-		}
-
-		const cols = this.columns.get(table);
-
-		if (!cols) {
-			return;
-		}
-
-		for (const [col, value] of this.writeValues(node)) {
-			const coercion = cols.get(col);
-
-			if (!coercion || typeof coercion === "string") {
-				continue;
-			}
-
-			this.validateJsonValue(table, col, value, coercion.schema);
-		}
-	}
-
-	private *writeValues(node: RootOperationNode) {
-		if (node.kind === "InsertQueryNode") {
-			const columns = node.columns?.map((c) => c.column.name);
-
-			if (!columns || !node.values || !ValuesNode.is(node.values)) {
-				return;
-			}
-
-			for (const valueList of node.values.values) {
-				for (let i = 0; i < columns.length; i++) {
-					const col = columns[i]!;
-
-					if (valueList.kind === "PrimitiveValueListNode") {
-						yield [col, valueList.values[i]] as [string, unknown];
-						continue;
-					}
-
-					const raw = valueList.values[i];
-
-					if (!raw || DefaultInsertValueNode.is(raw)) {
-						continue;
-					}
-
-					yield [col, ValueNode.is(raw) ? raw.value : raw] as [string, unknown];
-				}
-			}
-
-			for (const update of node.onConflict?.updates ?? []) {
-				if (ColumnNode.is(update.column) && ValueNode.is(update.value)) {
-					yield [update.column.column.name, update.value.value] as [string, unknown];
-				}
-			}
-
-			return;
-		}
-
-		if (node.kind !== "UpdateQueryNode" || !node.updates) {
-			return;
-		}
-
-		for (const update of node.updates) {
-			if (ColumnNode.is(update.column) && ValueNode.is(update.value)) {
-				yield [update.column.column.name, update.value.value] as [string, unknown];
-			}
-		}
-	}
-
-	private coerceSingle(table: string, row: UnknownRow, col: string, coercion: ColumnCoercion) {
-		if (coercion === "boolean") {
-			if (typeof row[col] === "number") {
-				row[col] = row[col] === 1;
-			}
-
-			return;
-		}
-
-		if (coercion === "date") {
-			if (typeof row[col] === "number") {
-				row[col] = new Date(row[col] * 1000);
-			}
-
-			return;
-		}
-
-		if (typeof row[col] !== "string") {
-			return;
-		}
-
-		const value = row[col];
-
-		let parsed: unknown;
-
+	private parseJson(table: string, column: string, value: string) {
 		try {
-			parsed = JSON.parse(value);
+			return JSON.parse(value);
 		} catch (e) {
-			throw new JsonParseError(table, col, value, e);
+			throw new JsonParseError(table, column, value, e);
 		}
+	}
+
+	private hydrateCoercion(plan: CoercionPlan, value: unknown) {
+		if (value === null || value === undefined) {
+			return value;
+		}
+
+		if (plan.coercion === "boolean") {
+			if (typeof value === "number") {
+				return value === 1;
+			}
+
+			return value;
+		}
+
+		if (plan.coercion === "date") {
+			if (typeof value === "number") {
+				return new Date(value * 1000);
+			}
+
+			return value;
+		}
+
+		const parsed =
+			typeof value === "string" ? this.parseJson(plan.table, plan.column, value) : value;
 
 		if (this.validation.onRead) {
-			this.validateJsonValue(table, col, parsed, coercion.schema);
+			this.validateJsonValue(plan.table, plan.column, parsed, plan.coercion.schema);
 		}
 
-		row[col] = parsed;
+		return parsed;
 	}
 
-	private coerceRow(table: string, row: UnknownRow, cols: Map<string, ColumnCoercion>) {
-		for (const [col, coercion] of cols) {
-			if (!(col in row)) {
+	private parseStructuredValue(table: string, column: string, value: unknown) {
+		if (value === null || value === undefined) {
+			return value;
+		}
+
+		if (typeof value === "string") {
+			return this.parseJson(table, column, value);
+		}
+
+		return value;
+	}
+
+	private isPlainObject(value: unknown): value is Record<string, unknown> {
+		return typeof value === "object" && value !== null && !Array.isArray(value);
+	}
+
+	private hydrateObject(plan: ObjectPlan, value: unknown) {
+		const parsed = this.parseStructuredValue(plan.table, plan.column, value);
+
+		if (!this.isPlainObject(parsed)) {
+			return parsed;
+		}
+
+		for (const [field, fieldPlan] of plan.fields) {
+			if (!(field in parsed)) {
 				continue;
 			}
 
-			this.coerceSingle(table, row, col, coercion);
+			parsed[field] = this.hydrateValue(fieldPlan, parsed[field]);
 		}
+
+		return parsed;
+	}
+
+	private hydrateArray(plan: ArrayPlan, value: unknown) {
+		const parsed = this.parseStructuredValue(plan.table, plan.column, value);
+
+		if (!Array.isArray(parsed)) {
+			return parsed;
+		}
+
+		for (let i = 0; i < parsed.length; i++) {
+			const item = parsed[i];
+
+			if (!this.isPlainObject(item)) {
+				continue;
+			}
+
+			for (const [field, fieldPlan] of plan.fields) {
+				if (!(field in item)) {
+					continue;
+				}
+
+				item[field] = this.hydrateValue(fieldPlan, item[field]);
+			}
+		}
+
+		return parsed;
+	}
+
+	private hydrateValue(plan: ValuePlan, value: unknown): unknown {
+		if (plan.kind === "coercion") {
+			return this.hydrateCoercion(plan, value);
+		}
+
+		if (plan.kind === "object") {
+			return this.hydrateObject(plan, value);
+		}
+
+		return this.hydrateArray(plan, value);
 	}
 
 	private getIdentifierName(node: OperationNode | undefined) {
@@ -313,20 +347,115 @@ export class DeserializePlugin implements KyselyPlugin {
 		return match;
 	}
 
-	private resolveSelectionCoercion(
+	private isRawNode(node: OperationNode): node is RawOperationNode {
+		return node.kind === "RawNode";
+	}
+
+	private matchesFragments(
+		fragments: readonly string[],
+		expected: readonly [string, string, string],
+	) {
+		return (
+			fragments.length === expected.length &&
+			fragments.every((fragment, index) => fragment === expected[index])
+		);
+	}
+
+	private getJsonHelper(node: RawOperationNode): JsonHelper | null {
+		const query = node.parameters[1];
+
+		if (!query || !SelectQueryNode.is(query)) {
+			return null;
+		}
+
+		if (this.matchesFragments(node.sqlFragments, jsonObjectFromFragments)) {
+			return { kind: "object", query };
+		}
+
+		if (this.matchesFragments(node.sqlFragments, jsonArrayFromFragments)) {
+			return { kind: "array", query };
+		}
+
+		return null;
+	}
+
+	private getStructuredFieldPlans(node: SelectQueryNode) {
+		const result = new Map<string, ValuePlan>();
+
+		if (!node.selections) {
+			return result;
+		}
+
+		const scope = this.getTableScope(node);
+
+		for (const selectionNode of node.selections) {
+			const output = this.getSelectionOutputName(selectionNode.selection);
+
+			if (!output) {
+				continue;
+			}
+
+			const plan = this.resolveSelectionPlan(selectionNode.selection, scope, output);
+
+			if (plan) {
+				result.set(output, plan);
+			}
+		}
+
+		return result;
+	}
+
+	private resolveJsonHelperPlan(node: RawOperationNode, output: string | null): ValuePlan | null {
+		if (!output) {
+			return null;
+		}
+
+		const helper = this.getJsonHelper(node);
+
+		if (!helper) {
+			return null;
+		}
+
+		const table = this.getTableFromNode(helper.query) ?? output;
+		const fields = this.getStructuredFieldPlans(helper.query);
+
+		if (helper.kind === "object") {
+			return { kind: "object", table, column: output, fields };
+		}
+
+		return { kind: "array", table, column: output, fields };
+	}
+
+	private resolveSelectionPlan(
 		node: OperationNode,
 		scope: Map<string, string>,
-	): ResolvedCoercion | null {
+		output: string | null,
+	): ValuePlan | null {
 		if (AliasNode.is(node)) {
-			return this.resolveSelectionCoercion(node.node, scope);
+			return this.resolveSelectionPlan(node.node, scope, output ?? this.getIdentifierName(node.alias));
 		}
 
 		if (ReferenceNode.is(node) || ColumnNode.is(node)) {
-			return this.resolveReferenceCoercion(node, scope);
+			if (!output) {
+				return null;
+			}
+
+			const resolved = this.resolveReferenceCoercion(node, scope);
+
+			if (!resolved) {
+				return null;
+			}
+
+			return {
+				kind: "coercion",
+				table: resolved.table,
+				column: output,
+				coercion: resolved.coercion,
+			};
 		}
 
 		if (SelectQueryNode.is(node)) {
-			return this.resolveScalarSubqueryCoercion(node);
+			return this.resolveScalarSubqueryPlan(node, output);
 		}
 
 		if (AggregateFunctionNode.is(node)) {
@@ -337,26 +466,30 @@ export class DeserializePlugin implements KyselyPlugin {
 				return null;
 			}
 
-			return this.resolveSelectionCoercion(node.aggregated[0]!, scope);
+			return this.resolveSelectionPlan(node.aggregated[0]!, scope, output);
 		}
 
 		if (ParensNode.is(node)) {
-			return this.resolveSelectionCoercion(node.node, scope);
+			return this.resolveSelectionPlan(node.node, scope, output);
 		}
 
 		if (CastNode.is(node)) {
 			return null;
 		}
 
+		if (this.isRawNode(node)) {
+			return this.resolveJsonHelperPlan(node, output);
+		}
+
 		return null;
 	}
 
-	private resolveScalarSubqueryCoercion(node: SelectQueryNode) {
+	private resolveScalarSubqueryPlan(node: SelectQueryNode, output: string | null) {
 		if (!node.selections || node.selections.length !== 1) {
 			return null;
 		}
 
-		return this.resolveSelectionCoercion(node.selections[0]!.selection, this.getTableScope(node));
+		return this.resolveSelectionPlan(node.selections[0]!.selection, this.getTableScope(node), output);
 	}
 
 	private getSelectionOutputName(node: OperationNode) {
@@ -375,8 +508,8 @@ export class DeserializePlugin implements KyselyPlugin {
 		return null;
 	}
 
-	private getSelectCoercions(node: RootOperationNode) {
-		const result = new Map<string, ResolvedCoercion>();
+	private getSelectionPlans(node: RootOperationNode) {
+		const result = new Map<string, ValuePlan>();
 
 		if (node.kind !== "SelectQueryNode" || !node.selections) {
 			return result;
@@ -391,65 +524,86 @@ export class DeserializePlugin implements KyselyPlugin {
 				continue;
 			}
 
-			const resolved = this.resolveSelectionCoercion(selectionNode.selection, scope);
+			const plan = this.resolveSelectionPlan(selectionNode.selection, scope, output);
 
-			if (resolved) {
-				result.set(output, resolved);
+			if (plan) {
+				result.set(output, plan);
 			}
 		}
 
 		return result;
 	}
 
-	transformResult: KyselyPlugin["transformResult"] = async (args) => {
-		const node = this.queryNodes.get(args.queryId);
-
-		if (!node) {
-			return args.result;
-		}
-
-		const table = this.getTableFromNode(node);
-
-		if (!table) {
-			return args.result;
-		}
-
-		const mainCols = this.columns.get(table);
-		const mainTableColumns = this.tableColumns.get(table);
-		const selectCoercions = this.getSelectCoercions(node);
-
-		for (const row of args.result.rows) {
-			if (mainCols) {
-				this.coerceRow(table, row, mainCols);
+	private coerceMainRow(table: string, row: UnknownRow, cols: Map<string, ColumnCoercion>) {
+		for (const [column, coercion] of cols) {
+			if (!(column in row)) {
+				continue;
 			}
 
-			for (const col of Object.keys(row)) {
-				const resolved = selectCoercions.get(col);
+			row[column] = this.hydrateCoercion({
+				kind: "coercion",
+				table,
+				column,
+				coercion,
+			}, row[column]);
+		}
+	}
 
-				if (resolved) {
-					this.coerceSingle(resolved.table, row, col, resolved.coercion);
+	transformResult: KyselyPlugin["transformResult"] = async (args) => {
+		const plan = this.queryPlans.get(args.queryId);
+
+		if (!plan) {
+			return args.result;
+		}
+
+		const mainCols = plan.table ? this.columns.get(plan.table) : null;
+		const mainTableColumns = plan.table ? this.tableColumns.get(plan.table) : null;
+
+		for (const row of args.result.rows) {
+			if (plan.table && mainCols) {
+				this.coerceMainRow(plan.table, row, mainCols);
+			}
+
+			for (const [column, selectionPlan] of plan.selectionPlans) {
+				if (!(column in row)) {
 					continue;
 				}
 
-				if (mainTableColumns?.has(col)) {
+				row[column] = this.hydrateValue(selectionPlan, row[column]);
+			}
+
+			if (!plan.table) {
+				continue;
+			}
+
+			for (const column of Object.keys(row)) {
+				if (plan.selectionPlans.has(column) || mainTableColumns?.has(column)) {
 					continue;
 				}
 
 				for (const [otherTable, otherCols] of this.columns) {
-					if (otherTable === table) {
+					if (otherTable === plan.table) {
 						continue;
 					}
 
-					const coercion = otherCols.get(col);
+					const coercion = otherCols.get(column);
 
-					if (coercion) {
-						this.coerceSingle(otherTable, row, col, coercion);
-						break;
+					if (!coercion) {
+						continue;
 					}
+
+					row[column] = this.hydrateCoercion({
+						kind: "coercion",
+						table: otherTable,
+						column,
+						coercion,
+					}, row[column]);
+
+					break;
 				}
 			}
 		}
 
-		return { ...args.result };
+		return args.result;
 	};
 }

@@ -11,7 +11,8 @@
 		"unicorn/consistent-function-scoping": "off",
 		"no-warning-comments": "off",
 		"no-array-sort": "off",
-		"require-await": "off"
+		"require-await": "off",
+		"no-shadow": "off"
 	},
 	"categories": {
 		"correctness": "error",
